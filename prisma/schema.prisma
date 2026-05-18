@@ -1,0 +1,566 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model attachment_types {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                        String                        @unique @db.VarChar(100)
+  name_ar                     String                        @db.VarChar(255)
+  name_en                     String?                       @db.VarChar(255)
+  category                    String                        @db.VarChar(50)
+  is_required                 Boolean?                      @default(false)
+  allowed_extensions          String?
+  max_file_size_mb            Int?
+  is_active                   Boolean?                      @default(true)
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  beneficiary_attachments     beneficiary_attachments[]
+  periodic_report_attachments periodic_report_attachments[]
+
+  @@index([category], map: "idx_attachment_types_category")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model audit_logs {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String?   @db.Uuid
+  action      String    @db.VarChar(100)
+  entity_name String    @db.VarChar(100)
+  entity_id   String?   @db.Uuid
+  old_data    Json?
+  new_data    Json?
+  ip_address  String?   @db.VarChar(100)
+  user_agent  String?
+  notes       String?
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([action], map: "idx_audit_logs_action")
+  @@index([created_at], map: "idx_audit_logs_created_at")
+  @@index([entity_name, entity_id], map: "idx_audit_logs_entity")
+  @@index([user_id], map: "idx_audit_logs_user_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model beneficiaries {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_code            String                        @unique @db.VarChar(50)
+  file_number                 String                        @unique @db.VarChar(50)
+  external_reference          String?                       @db.VarChar(255)
+  beneficiary_type            String                        @db.VarChar(50)
+  branch_id                   String                        @db.Uuid
+  site_id                     String                        @db.Uuid
+  center_id                   String?                       @db.Uuid
+  first_name                  String                        @db.VarChar(100)
+  father_name                 String?                       @db.VarChar(100)
+  grandfather_name            String?                       @db.VarChar(100)
+  family_name                 String?                       @db.VarChar(100)
+  full_name                   String?                       @db.VarChar(255)
+  gender                      String?                       @db.VarChar(20)
+  birth_date                  DateTime?                     @db.Date
+  birth_place                 String?                       @db.VarChar(255)
+  nationality                 String?                       @db.VarChar(100)
+  religion                    String?                       @db.VarChar(100)
+  identity_type               String?                       @db.VarChar(50)
+  identity_number             String?                       @db.VarChar(100)
+  phone                       String?                       @db.VarChar(50)
+  alternative_phone           String?                       @db.VarChar(50)
+  address                     String?
+  registration_date           DateTime?                     @default(dbgenerated("CURRENT_DATE")) @db.Date
+  current_status              String?                       @default("draft") @db.VarChar(50)
+  notes                       String?
+  is_active                   Boolean?                      @default(true)
+  created_by                  String?                       @db.Uuid
+  updated_by                  String?                       @db.Uuid
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  deleted_at                  DateTime?                     @db.Timestamp(6)
+  branches                    branches                      @relation(fields: [branch_id], references: [id])
+  centers                     centers?                      @relation(fields: [center_id], references: [id])
+  sites                       sites                         @relation(fields: [site_id], references: [id])
+  beneficiary_attachments     beneficiary_attachments[]
+  beneficiary_change_logs     beneficiary_change_logs[]
+  beneficiary_dynamic_data    beneficiary_dynamic_data[]
+  beneficiary_related_persons beneficiary_related_persons[]
+  beneficiary_status_history  beneficiary_status_history[]
+  periodic_report_attachments periodic_report_attachments[]
+  periodic_reports            periodic_reports[]
+  sponsorships                sponsorships[]
+
+  @@index([beneficiary_type], map: "idx_beneficiaries_beneficiary_type")
+  @@index([branch_id], map: "idx_beneficiaries_branch_id")
+  @@index([center_id], map: "idx_beneficiaries_center_id")
+  @@index([current_status], map: "idx_beneficiaries_current_status")
+  @@index([external_reference], map: "idx_beneficiaries_external_reference")
+  @@index([full_name], map: "idx_beneficiaries_full_name")
+  @@index([identity_number], map: "idx_beneficiaries_identity_number")
+  @@index([site_id], map: "idx_beneficiaries_site_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model beneficiary_attachments {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id     String           @db.Uuid
+  attachment_type_id String           @db.Uuid
+  branch_id          String           @db.Uuid
+  site_id            String           @db.Uuid
+  center_id          String?          @db.Uuid
+  file_number        String           @db.VarChar(50)
+  file_extension     String           @db.VarChar(20)
+  file_path          String
+  mime_type          String?          @db.VarChar(100)
+  file_size          BigInt?
+  uploaded_by        String?          @db.Uuid
+  uploaded_at        DateTime?        @default(now()) @db.Timestamp(6)
+  is_active          Boolean?         @default(true)
+  notes              String?
+  created_at         DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?        @default(now()) @db.Timestamp(6)
+  attachment_types   attachment_types @relation(fields: [attachment_type_id], references: [id])
+  beneficiaries      beneficiaries    @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  branches           branches         @relation(fields: [branch_id], references: [id])
+  centers            centers?         @relation(fields: [center_id], references: [id])
+  sites              sites            @relation(fields: [site_id], references: [id])
+
+  @@index([attachment_type_id], map: "idx_beneficiary_attachments_attachment_type_id")
+  @@index([beneficiary_id], map: "idx_beneficiary_attachments_beneficiary_id")
+  @@index([file_number], map: "idx_beneficiary_attachments_file_number")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model beneficiary_change_logs {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id String        @db.Uuid
+  table_name     String        @db.VarChar(100)
+  record_id      String?       @db.Uuid
+  field_name     String        @db.VarChar(100)
+  old_value      String?
+  new_value      String?
+  change_reason  String?
+  changed_by     String?       @db.Uuid
+  changed_at     DateTime?     @default(now()) @db.Timestamp(6)
+  beneficiaries  beneficiaries @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+
+  @@index([beneficiary_id], map: "idx_beneficiary_change_logs_beneficiary_id")
+  @@index([changed_at], map: "idx_beneficiary_change_logs_changed_at")
+  @@index([changed_by], map: "idx_beneficiary_change_logs_changed_by")
+  @@index([table_name], map: "idx_beneficiary_change_logs_table_name")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model beneficiary_dynamic_data {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id String        @db.Uuid
+  data_type      String        @db.VarChar(50)
+  data_key       String        @db.VarChar(100)
+  data_value     String?
+  record_date    DateTime?     @default(dbgenerated("CURRENT_DATE")) @db.Date
+  notes          String?
+  created_by     String?       @db.Uuid
+  updated_by     String?       @db.Uuid
+  created_at     DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?     @default(now()) @db.Timestamp(6)
+  beneficiaries  beneficiaries @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+
+  @@index([beneficiary_id], map: "idx_dynamic_data_beneficiary_id")
+  @@index([data_key], map: "idx_dynamic_data_key")
+  @@index([record_date], map: "idx_dynamic_data_record_date")
+  @@index([data_type], map: "idx_dynamic_data_type")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model beneficiary_related_persons {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id    String          @db.Uuid
+  related_person_id String          @db.Uuid
+  relation_type     String          @db.VarChar(50)
+  is_primary        Boolean?        @default(false)
+  notes             String?
+  created_at        DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at        DateTime?       @default(now()) @db.Timestamp(6)
+  beneficiaries     beneficiaries   @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  related_persons   related_persons @relation(fields: [related_person_id], references: [id])
+
+  @@unique([beneficiary_id, related_person_id, relation_type], map: "uq_beneficiary_related_person")
+  @@index([beneficiary_id], map: "idx_beneficiary_related_beneficiary_id")
+  @@index([related_person_id], map: "idx_beneficiary_related_person_id")
+  @@index([relation_type], map: "idx_beneficiary_related_relation_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model beneficiary_status_history {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id String        @db.Uuid
+  from_status    String?       @db.VarChar(50)
+  to_status      String        @db.VarChar(50)
+  action_type    String        @db.VarChar(50)
+  action_notes   String?
+  action_by      String?       @db.Uuid
+  action_at      DateTime?     @default(now()) @db.Timestamp(6)
+  beneficiaries  beneficiaries @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+
+  @@index([action_at], map: "idx_beneficiary_status_history_action_at")
+  @@index([beneficiary_id], map: "idx_beneficiary_status_history_beneficiary_id")
+  @@index([to_status], map: "idx_beneficiary_status_history_to_status")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model branches {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branch_code                 String                        @unique @db.VarChar(20)
+  branch_name_ar              String                        @db.VarChar(255)
+  branch_name_en              String?                       @db.VarChar(255)
+  city                        String?                       @db.VarChar(255)
+  address                     String?
+  phone                       String?                       @db.VarChar(50)
+  is_active                   Boolean?                      @default(true)
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  beneficiaries               beneficiaries[]
+  beneficiary_attachments     beneficiary_attachments[]
+  centers                     centers[]
+  periodic_report_attachments periodic_report_attachments[]
+  sites                       sites[]
+  users                       users[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model centers {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branch_id                   String                        @db.Uuid
+  site_id                     String                        @db.Uuid
+  center_code                 String?                       @db.VarChar(20)
+  center_name_ar              String                        @db.VarChar(255)
+  center_name_en              String?                       @db.VarChar(255)
+  address                     String?
+  is_active                   Boolean?                      @default(true)
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  beneficiaries               beneficiaries[]
+  beneficiary_attachments     beneficiary_attachments[]
+  branches                    branches                      @relation(fields: [branch_id], references: [id])
+  sites                       sites                         @relation(fields: [site_id], references: [id])
+  periodic_report_attachments periodic_report_attachments[]
+  users                       users[]
+
+  @@unique([site_id, center_code], map: "uq_centers_site_code")
+  @@index([branch_id], map: "idx_centers_branch_id")
+  @@index([site_id], map: "idx_centers_site_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model periodic_report_attachments {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  periodic_report_id String           @db.Uuid
+  beneficiary_id     String           @db.Uuid
+  sponsorship_id     String?          @db.Uuid
+  attachment_type_id String           @db.Uuid
+  report_year        Int
+  report_type        String           @db.VarChar(50)
+  branch_id          String           @db.Uuid
+  site_id            String           @db.Uuid
+  center_id          String?          @db.Uuid
+  file_number        String           @db.VarChar(50)
+  file_extension     String           @db.VarChar(20)
+  file_path          String
+  mime_type          String?          @db.VarChar(100)
+  file_size          BigInt?
+  uploaded_by        String?          @db.Uuid
+  uploaded_at        DateTime?        @default(now()) @db.Timestamp(6)
+  is_active          Boolean?         @default(true)
+  notes              String?
+  created_at         DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?        @default(now()) @db.Timestamp(6)
+  attachment_types   attachment_types @relation(fields: [attachment_type_id], references: [id])
+  beneficiaries      beneficiaries    @relation(fields: [beneficiary_id], references: [id])
+  branches           branches         @relation(fields: [branch_id], references: [id])
+  centers            centers?         @relation(fields: [center_id], references: [id])
+  periodic_reports   periodic_reports @relation(fields: [periodic_report_id], references: [id], onDelete: Cascade)
+  sites              sites            @relation(fields: [site_id], references: [id])
+  sponsorships       sponsorships?    @relation(fields: [sponsorship_id], references: [id])
+
+  @@index([beneficiary_id], map: "idx_periodic_report_attachments_beneficiary_id")
+  @@index([periodic_report_id], map: "idx_periodic_report_attachments_report_id")
+  @@index([report_year, report_type], map: "idx_periodic_report_attachments_year_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model periodic_report_status_history {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  periodic_report_id String           @db.Uuid
+  from_status        String?          @db.VarChar(50)
+  to_status          String           @db.VarChar(50)
+  action_type        String           @db.VarChar(50)
+  action_notes       String?
+  action_by          String?          @db.Uuid
+  action_at          DateTime?        @default(now()) @db.Timestamp(6)
+  periodic_reports   periodic_reports @relation(fields: [periodic_report_id], references: [id], onDelete: Cascade)
+
+  @@index([action_at], map: "idx_periodic_report_status_history_action_at")
+  @@index([periodic_report_id], map: "idx_periodic_report_status_history_report_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model periodic_reports {
+  id                             String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_code                    String                           @unique @db.VarChar(50)
+  beneficiary_id                 String                           @db.Uuid
+  sponsorship_id                 String?                          @db.Uuid
+  report_year                    Int
+  report_type                    String                           @db.VarChar(50)
+  status                         String?                          @default("preparing") @db.VarChar(50)
+  report_summary                 String?
+  notes                          String?
+  prepared_by                    String?                          @db.Uuid
+  prepared_at                    DateTime?                        @db.Timestamp(6)
+  updated_by                     String?                          @db.Uuid
+  updated_at                     DateTime?                        @default(now()) @db.Timestamp(6)
+  approved_by                    String?                          @db.Uuid
+  approved_at                    DateTime?                        @db.Timestamp(6)
+  sent_by                        String?                          @db.Uuid
+  sent_at                        DateTime?                        @db.Timestamp(6)
+  created_at                     DateTime?                        @default(now()) @db.Timestamp(6)
+  periodic_report_attachments    periodic_report_attachments[]
+  periodic_report_status_history periodic_report_status_history[]
+  beneficiaries                  beneficiaries                    @relation(fields: [beneficiary_id], references: [id])
+  sponsorships                   sponsorships?                    @relation(fields: [sponsorship_id], references: [id])
+
+  @@index([beneficiary_id], map: "idx_periodic_reports_beneficiary_id")
+  @@index([sponsorship_id], map: "idx_periodic_reports_sponsorship_id")
+  @@index([status], map: "idx_periodic_reports_status")
+  @@index([report_year, report_type], map: "idx_periodic_reports_year_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model permissions {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  permission_code    String             @unique @db.VarChar(150)
+  permission_name_ar String             @db.VarChar(255)
+  permission_name_en String?            @db.VarChar(255)
+  module_id          String?            @db.Uuid
+  action_code        String             @db.VarChar(50)
+  description        String?
+  is_active          Boolean?           @default(true)
+  created_at         DateTime?          @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?          @default(now()) @db.Timestamp(6)
+  system_modules     system_modules?    @relation(fields: [module_id], references: [id])
+  role_permissions   role_permissions[]
+
+  @@index([action_code], map: "idx_permissions_action_code")
+  @@index([module_id], map: "idx_permissions_module_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model related_persons {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  person_code                 String                        @unique @db.VarChar(50)
+  full_name                   String                        @db.VarChar(255)
+  gender                      String?                       @db.VarChar(20)
+  birth_date                  DateTime?                     @db.Date
+  identity_type               String?                       @db.VarChar(50)
+  identity_number             String?                       @db.VarChar(100)
+  phone                       String?                       @db.VarChar(50)
+  address                     String?
+  status                      String?                       @db.VarChar(50)
+  notes                       String?
+  is_active                   Boolean?                      @default(true)
+  created_by                  String?                       @db.Uuid
+  updated_by                  String?                       @db.Uuid
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  beneficiary_related_persons beneficiary_related_persons[]
+
+  @@index([full_name], map: "idx_related_persons_full_name")
+  @@index([identity_number], map: "idx_related_persons_identity_number")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model role_permissions {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role_id       String      @db.Uuid
+  permission_id String      @db.Uuid
+  created_at    DateTime?   @default(now()) @db.Timestamp(6)
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id], map: "uq_role_permissions")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model roles {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role_code        String             @unique @db.VarChar(100)
+  role_name_ar     String             @db.VarChar(255)
+  role_name_en     String?            @db.VarChar(255)
+  description      String?
+  is_active        Boolean?           @default(true)
+  created_at       DateTime?          @default(now()) @db.Timestamp(6)
+  updated_at       DateTime?          @default(now()) @db.Timestamp(6)
+  role_permissions role_permissions[]
+  user_roles       user_roles[]
+
+  @@index([role_code], map: "idx_roles_code")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sites {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branch_id                   String                        @db.Uuid
+  site_code                   String                        @db.VarChar(20)
+  site_name_ar                String                        @db.VarChar(255)
+  site_name_en                String?                       @db.VarChar(255)
+  address                     String?
+  is_active                   Boolean?                      @default(true)
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  beneficiaries               beneficiaries[]
+  beneficiary_attachments     beneficiary_attachments[]
+  centers                     centers[]
+  periodic_report_attachments periodic_report_attachments[]
+  branches                    branches                      @relation(fields: [branch_id], references: [id])
+  users                       users[]
+
+  @@unique([branch_id, site_code], map: "uq_sites_branch_code")
+  @@index([branch_id], map: "idx_sites_branch_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sponsors {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sponsor_code      String         @unique @db.VarChar(50)
+  sponsor_name      String         @db.VarChar(255)
+  sponsor_type      String         @db.VarChar(50)
+  parent_sponsor_id String?        @db.Uuid
+  phone             String?        @db.VarChar(50)
+  email             String?        @db.VarChar(255)
+  address           String?
+  contact_person    String?        @db.VarChar(255)
+  notes             String?
+  is_active         Boolean?       @default(true)
+  created_by        String?        @db.Uuid
+  updated_by        String?        @db.Uuid
+  created_at        DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at        DateTime?      @default(now()) @db.Timestamp(6)
+  sponsors          sponsors?      @relation("sponsorsTosponsors", fields: [parent_sponsor_id], references: [id])
+  other_sponsors    sponsors[]     @relation("sponsorsTosponsors")
+  sponsorships      sponsorships[]
+
+  @@index([sponsor_name], map: "idx_sponsors_name")
+  @@index([parent_sponsor_id], map: "idx_sponsors_parent_sponsor_id")
+  @@index([sponsor_type], map: "idx_sponsors_sponsor_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sponsorship_status_history {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sponsorship_id String       @db.Uuid
+  from_status    String?      @db.VarChar(50)
+  to_status      String       @db.VarChar(50)
+  action_type    String       @db.VarChar(50)
+  action_notes   String?
+  action_by      String?      @db.Uuid
+  action_at      DateTime?    @default(now()) @db.Timestamp(6)
+  sponsorships   sponsorships @relation(fields: [sponsorship_id], references: [id], onDelete: Cascade)
+
+  @@index([action_at], map: "idx_sponsorship_status_history_action_at")
+  @@index([sponsorship_id], map: "idx_sponsorship_status_history_sponsorship_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sponsorships {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sponsorship_code            String                        @unique @db.VarChar(50)
+  beneficiary_id              String                        @db.Uuid
+  sponsor_id                  String                        @db.Uuid
+  sponsorship_type            String                        @db.VarChar(50)
+  amount                      Decimal?                      @db.Decimal(14, 2)
+  currency                    String?                       @default("YER") @db.VarChar(10)
+  start_date                  DateTime?                     @db.Date
+  end_date                    DateTime?                     @db.Date
+  status                      String?                       @default("active") @db.VarChar(50)
+  notes                       String?
+  created_by                  String?                       @db.Uuid
+  updated_by                  String?                       @db.Uuid
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  periodic_report_attachments periodic_report_attachments[]
+  periodic_reports            periodic_reports[]
+  sponsorship_status_history  sponsorship_status_history[]
+  beneficiaries               beneficiaries                 @relation(fields: [beneficiary_id], references: [id])
+  sponsors                    sponsors                      @relation(fields: [sponsor_id], references: [id])
+
+  @@index([beneficiary_id], map: "idx_sponsorships_beneficiary_id")
+  @@index([end_date], map: "idx_sponsorships_end_date")
+  @@index([sponsor_id], map: "idx_sponsorships_sponsor_id")
+  @@index([start_date], map: "idx_sponsorships_start_date")
+  @@index([status], map: "idx_sponsorships_status")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model system_modules {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  module_code          String           @unique @db.VarChar(100)
+  module_name_ar       String           @db.VarChar(255)
+  module_name_en       String?          @db.VarChar(255)
+  parent_module_id     String?          @db.Uuid
+  module_type          String           @db.VarChar(50)
+  route_path           String?          @db.VarChar(255)
+  sort_order           Int?             @default(0)
+  is_active            Boolean?         @default(true)
+  created_at           DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at           DateTime?        @default(now()) @db.Timestamp(6)
+  permissions          permissions[]
+  system_modules       system_modules?  @relation("system_modulesTosystem_modules", fields: [parent_module_id], references: [id])
+  other_system_modules system_modules[] @relation("system_modulesTosystem_modules")
+
+  @@index([parent_module_id], map: "idx_system_modules_parent_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user_roles {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  role_id    String    @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  roles      roles     @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, role_id], map: "uq_user_roles")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model users {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username      String       @unique @db.VarChar(100)
+  full_name     String       @db.VarChar(255)
+  email         String?      @unique @db.VarChar(255)
+  phone         String?      @db.VarChar(50)
+  password_hash String
+  branch_id     String?      @db.Uuid
+  site_id       String?      @db.Uuid
+  center_id     String?      @db.Uuid
+  is_active     Boolean?     @default(true)
+  last_login_at DateTime?    @db.Timestamp(6)
+  created_at    DateTime?    @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?    @default(now()) @db.Timestamp(6)
+  user_roles    user_roles[]
+  branches      branches?    @relation(fields: [branch_id], references: [id])
+  centers       centers?     @relation(fields: [center_id], references: [id])
+  sites         sites?       @relation(fields: [site_id], references: [id])
+
+  @@index([branch_id], map: "idx_users_branch_id")
+  @@index([email], map: "idx_users_email")
+  @@index([username], map: "idx_users_username")
+}
