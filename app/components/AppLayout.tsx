@@ -3,6 +3,7 @@ import { getLocale, getDirection } from "@/lib/i18n";
 import { brand } from "@/constants/brand";
 import SidebarNav from "./SidebarNav";
 import LanguageSwitcher from "./LanguageSwitcher";
+import { Toaster } from "sonner";
 
 export default async function AppLayout({
   children,
@@ -88,6 +89,7 @@ export default async function AppLayout({
 
         <div className="p-10">{children}</div>
       </section>
+    <Toaster richColors position="top-center" />
     </main>
   );
 }
