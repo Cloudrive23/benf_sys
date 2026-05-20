@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
+type OrgUnit = { id: string; branch_name_ar?: string; site_name_ar?: string; center_name_ar?: string; branch_id?: string; site_id?: string };
+
 type Beneficiary = {
   id: string;
   beneficiary_code: string;
@@ -34,6 +36,12 @@ const emptyForm = {
   beneficiary_type: "orphan",
   current_status: "draft",
   is_active: true,
+  branch_id: "",
+  site_id: "",
+  center_id: "",
+  father: { full_name: "", phone: "", identity_number: "" },
+  mother: { full_name: "", phone: "", identity_number: "" },
+  guardian: { full_name: "", phone: "", identity_number: "" },
 };
 
 export default function BeneficiariesClient() {
@@ -42,6 +50,9 @@ export default function BeneficiariesClient() {
   const [form, setForm] = useState(emptyForm);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [branches, setBranches] = useState<OrgUnit[]>([]);
+  const [sites, setSites] = useState<OrgUnit[]>([]);
+  const [centers, setCenters] = useState<OrgUnit[]>([]);
 
   async function load() {
     const res = await fetch("/api/beneficiaries", { cache: "no-store" });
@@ -51,8 +62,40 @@ export default function BeneficiariesClient() {
     else toast.error(data.message || "تعذر تحميل البيانات");
   }
 
+  async function loadLookups() {
+    const res = await fetch("/api/lookups/org-units", { cache: "no-store" });
+    const data = await res.json();
+
+    if (data.success) {
+      setBranches(data.data.branches || []);
+      setSites(data.data.sites || []);
+      setCenters(data.data.centers || []);
+
+      setForm((old) => ({
+        ...old,
+        branch_id: old.branch_id || data.data.branches?.[0]?.id || "",
+        site_id: old.site_id || data.data.sites?.[0]?.id || "",
+      }));
+    }
+  }
+
+  async function loadNextNumbers() {
+    const res = await fetch("/api/beneficiaries/next-numbers", { cache: "no-store" });
+    const data = await res.json();
+
+    if (data.success) {
+      setForm((old) => ({
+        ...old,
+        beneficiary_code: data.data.beneficiary_code,
+        file_number: data.data.file_number,
+        external_reference: data.data.beneficiary_code,
+      }));
+    }
+  }
+
   useEffect(() => {
     load();
+    loadLookups();
   }, []);
 
   const filtered = useMemo(() => {
@@ -63,19 +106,50 @@ export default function BeneficiariesClient() {
     );
   }, [items, search]);
 
+  function getRelated(item: any, type: string) {
+    return item.beneficiary_related_persons?.find(
+      (x: any) => x.relation_type === type
+    )?.related_persons;
+  }
+
   function edit(item: any) {
+    const father = getRelated(item, "father");
+    const mother = getRelated(item, "mother");
+    const guardian = getRelated(item, "guardian");
+
     setForm({
       ...emptyForm,
       id: item.id,
       beneficiary_code: item.beneficiary_code || "",
       file_number: item.file_number || "",
+      external_reference: item.external_reference || "",
       first_name: item.first_name || "",
       father_name: item.father_name || "",
       grandfather_name: item.grandfather_name || "",
       family_name: item.family_name || "",
       gender: item.gender || "male",
+      birth_date: item.birth_date ? item.birth_date.slice(0, 10) : "",
+      identity_number: item.identity_number || "",
       phone: item.phone || "",
       address: item.address || "",
+      branch_id: item.branch_id || branches[0]?.id || "",
+      site_id: item.site_id || sites[0]?.id || "",
+      center_id: item.center_id || "",
+      father: {
+        full_name: father?.full_name || "",
+        identity_number: father?.identity_number || "",
+        phone: father?.phone || "",
+      },
+      mother: {
+        full_name: mother?.full_name || "",
+        identity_number: mother?.identity_number || "",
+        phone: mother?.phone || "",
+      },
+      guardian: {
+        full_name: guardian?.full_name || "",
+        identity_number: guardian?.identity_number || "",
+        phone: guardian?.phone || "",
+      },
       current_status: item.current_status || "draft",
     });
     setOpen(true);
@@ -134,9 +208,14 @@ export default function BeneficiariesClient() {
         </div>
 
         <Button
-          onClick={() => {
-            setForm(emptyForm);
+          onClick={async () => {
+            setForm({
+              ...emptyForm,
+              branch_id: branches[0]?.id || "",
+              site_id: sites[0]?.id || "",
+            });
             setOpen(true);
+            await loadNextNumbers();
           }}
           style={{ backgroundColor: "var(--app-primary)", color: "white" }}
         >
@@ -228,9 +307,31 @@ export default function BeneficiariesClient() {
 
             <form onSubmit={save} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input required placeholder="رقم المستفيد" value={form.beneficiary_code} onChange={(e) => setForm({ ...form, beneficiary_code: e.target.value })} />
+                <Input readOnly placeholder="الرقم الثابت" value={form.beneficiary_code} />
                 <Input required placeholder="رقم الملف" value={form.file_number} onChange={(e) => setForm({ ...form, file_number: e.target.value })} />
                 <Input placeholder="الرقم الخارجي" value={form.external_reference} onChange={(e) => setForm({ ...form, external_reference: e.target.value })} />
+              </div>
+
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <select className="rounded-md border bg-transparent p-2" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} required>
+                  {branches.map((b: any) => (
+                    <option key={b.id} value={b.id}>{b.branch_name_ar}</option>
+                  ))}
+                </select>
+
+                <select className="rounded-md border bg-transparent p-2" value={form.site_id} onChange={(e) => setForm({ ...form, site_id: e.target.value })} required>
+                  {sites.filter((x: any) => !form.branch_id || x.branch_id === form.branch_id).map((x: any) => (
+                    <option key={x.id} value={x.id}>{x.site_name_ar}</option>
+                  ))}
+                </select>
+
+                <select className="rounded-md border bg-transparent p-2" value={form.center_id} onChange={(e) => setForm({ ...form, center_id: e.target.value })}>
+                  <option value="">بدون مركز</option>
+                  {centers.filter((x: any) => !form.site_id || x.site_id === form.site_id).map((x: any) => (
+                    <option key={x.id} value={x.id}>{x.center_name_ar}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -254,11 +355,49 @@ export default function BeneficiariesClient() {
                 <Input placeholder="العنوان" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
               </div>
 
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border rounded-xl p-4">
+                <div className="space-y-2">
+                  <div className="font-semibold">بيانات الأب</div>
+                  <Input placeholder="اسم الأب الكامل" value={form.father.full_name} onChange={(e) => setForm({ ...form, father: { ...form.father, full_name: e.target.value } })} />
+                  <Input placeholder="هوية الأب" value={form.father.identity_number} onChange={(e) => setForm({ ...form, father: { ...form.father, identity_number: e.target.value } })} />
+                  <Input placeholder="هاتف الأب" value={form.father.phone} onChange={(e) => setForm({ ...form, father: { ...form.father, phone: e.target.value } })} />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="font-semibold">بيانات الأم</div>
+                  <Input placeholder="اسم الأم الكامل" value={form.mother.full_name} onChange={(e) => setForm({ ...form, mother: { ...form.mother, full_name: e.target.value } })} />
+                  <Input placeholder="هوية الأم" value={form.mother.identity_number} onChange={(e) => setForm({ ...form, mother: { ...form.mother, identity_number: e.target.value } })} />
+                  <Input placeholder="هاتف الأم" value={form.mother.phone} onChange={(e) => setForm({ ...form, mother: { ...form.mother, phone: e.target.value } })} />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="font-semibold">بيانات المعيل</div>
+                  <Input placeholder="اسم المعيل الكامل" value={form.guardian.full_name} onChange={(e) => setForm({ ...form, guardian: { ...form.guardian, full_name: e.target.value } })} />
+                  <Input placeholder="هوية المعيل" value={form.guardian.identity_number} onChange={(e) => setForm({ ...form, guardian: { ...form.guardian, identity_number: e.target.value } })} />
+                  <Input placeholder="هاتف المعيل" value={form.guardian.phone} onChange={(e) => setForm({ ...form, guardian: { ...form.guardian, phone: e.target.value } })} />
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                  className="min-w-24"
+                >
                   إلغاء
                 </Button>
-                <Button type="submit" disabled={saving}>
+
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  className="min-w-24"
+                  style={{
+                    backgroundColor: "var(--app-primary)",
+                    color: "white",
+                  }}
+                >
                   {saving ? "جاري الحفظ..." : "حفظ"}
                 </Button>
               </div>
