@@ -1,18 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -58,9 +53,13 @@ const emptyForm = {
   is_active: true,
 };
 
+const pageSize = 10;
+
 export default function UsersClient() {
   const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -82,7 +81,7 @@ export default function UsersClient() {
     if (data.success) {
       setUsers(data.data);
     } else {
-      toast.error(data.message || "Failed to load users");
+      toast.error(data.message || "تعذر تحميل المستخدمين");
     }
 
     setLoading(false);
@@ -92,10 +91,22 @@ export default function UsersClient() {
     loadUsers();
   }, []);
 
-  const filteredUsers = users.filter((user) => {
-    const text = `${user.username} ${user.full_name} ${user.email || ""} ${user.phone || ""}`.toLowerCase();
-    return text.includes(search.toLowerCase());
-  });
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const text = `${user.username} ${user.full_name} ${user.email || ""} ${
+        user.phone || ""
+      }`.toLowerCase();
+
+      return text.includes(search.toLowerCase());
+    });
+  }, [users, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+
+  const pagedUsers = filteredUsers.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  );
 
   function openCreateDialog() {
     setForm(emptyForm);
@@ -133,11 +144,11 @@ export default function UsersClient() {
     const data = await res.json();
 
     if (data.success) {
-      toast.success(data.message);
+      toast.success(data.message || "تم الحفظ بنجاح");
       setDialogOpen(false);
       await loadUsers();
     } else {
-      toast.error(data.message || "Save failed");
+      toast.error(data.message || "تعذر حفظ البيانات");
     }
 
     setSaving(false);
@@ -158,12 +169,12 @@ export default function UsersClient() {
     const data = await res.json();
 
     if (data.success) {
-      toast.success(data.message);
+      toast.success(data.message || "تم الحذف بنجاح");
       setDeleteDialogOpen(false);
       setSelectedUser(null);
       await loadUsers();
     } else {
-      toast.error(data.message || "Delete failed");
+      toast.error(data.message || "تعذر حذف المستخدم");
     }
   }
 
@@ -171,29 +182,43 @@ export default function UsersClient() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Users Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage system users and access accounts
+          <h1 className="text-3xl font-bold">إدارة المستخدمين</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--app-muted)" }}>
+            إدارة حسابات مستخدمي النظام والصلاحيات الأساسية
           </p>
         </div>
 
-        <Button onClick={openCreateDialog}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add User
+        <Button
+          onClick={openCreateDialog}
+          style={{
+            backgroundColor: "var(--app-primary)",
+            color: "white",
+          }}
+        >
+          <Plus className="w-4 h-4 ml-2" />
+          إضافة مستخدم
         </Button>
       </div>
 
-      <Card>
+      <Card
+        style={{
+          backgroundColor: "var(--app-surface)",
+          borderColor: "var(--app-border)",
+        }}
+      >
         <CardHeader className="space-y-4">
-          <CardTitle>Users</CardTitle>
+          <CardTitle>قائمة المستخدمين</CardTitle>
 
           <div className="relative max-w-md">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+            <Search className="w-4 h-4 absolute right-3 top-3 text-muted-foreground" />
             <Input
-              placeholder="Search users..."
-              className="pl-10"
+              placeholder="بحث عن مستخدم..."
+              className="pr-10"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
         </CardHeader>
@@ -203,12 +228,12 @@ export default function UsersClient() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Full Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>اسم المستخدم</TableHead>
+                  <TableHead>الاسم الكامل</TableHead>
+                  <TableHead>البريد الإلكتروني</TableHead>
+                  <TableHead>الهاتف</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead className="text-left">الإجراءات</TableHead>
                 </TableRow>
               </TableHeader>
 
@@ -216,17 +241,21 @@ export default function UsersClient() {
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
-                      Loading users...
+                      جاري تحميل المستخدمين...
                     </TableCell>
                   </TableRow>
-                ) : filteredUsers.length === 0 ? (
+                ) : pagedUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No users found
+                    <TableCell
+                      colSpan={6}
+                      className="text-center py-8"
+                      style={{ color: "var(--app-muted)" }}
+                    >
+                      لا توجد بيانات
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredUsers.map((user) => (
+                  pagedUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>{user.username}</TableCell>
                       <TableCell>{user.full_name}</TableCell>
@@ -234,10 +263,10 @@ export default function UsersClient() {
                       <TableCell>{user.phone || "-"}</TableCell>
                       <TableCell>
                         <Badge variant={user.is_active ? "default" : "destructive"}>
-                          {user.is_active ? "Active" : "Inactive"}
+                          {user.is_active ? "نشط" : "غير نشط"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right space-x-2">
+                      <TableCell className="text-left space-x-2 space-x-reverse">
                         <Button
                           size="sm"
                           variant="outline"
@@ -260,6 +289,34 @@ export default function UsersClient() {
               </TableBody>
             </Table>
           </div>
+
+          <div className="flex items-center justify-between mt-4 text-sm">
+            <div style={{ color: "var(--app-muted)" }}>
+              إجمالي النتائج: {filteredUsers.length}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={page === 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                السابق
+              </Button>
+
+              <span>
+                صفحة {page} من {totalPages}
+              </span>
+
+              <Button
+                variant="outline"
+                disabled={page === totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                التالي
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -267,13 +324,13 @@ export default function UsersClient() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {form.id ? "Edit User" : "Add New User"}
+              {form.id ? "تعديل مستخدم" : "إضافة مستخدم جديد"}
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={saveUser} className="space-y-4">
             <Input
-              placeholder="Username"
+              placeholder="اسم المستخدم"
               value={form.username}
               onChange={(e) =>
                 setForm({ ...form, username: e.target.value })
@@ -282,7 +339,7 @@ export default function UsersClient() {
             />
 
             <Input
-              placeholder="Full Name"
+              placeholder="الاسم الكامل"
               value={form.full_name}
               onChange={(e) =>
                 setForm({ ...form, full_name: e.target.value })
@@ -291,7 +348,7 @@ export default function UsersClient() {
             />
 
             <Input
-              placeholder="Email"
+              placeholder="البريد الإلكتروني"
               value={form.email}
               onChange={(e) =>
                 setForm({ ...form, email: e.target.value })
@@ -299,7 +356,7 @@ export default function UsersClient() {
             />
 
             <Input
-              placeholder="Phone"
+              placeholder="رقم الهاتف"
               value={form.phone}
               onChange={(e) =>
                 setForm({ ...form, phone: e.target.value })
@@ -308,7 +365,7 @@ export default function UsersClient() {
 
             <Input
               type="password"
-              placeholder={form.id ? "New Password (optional)" : "Password"}
+              placeholder={form.id ? "كلمة مرور جديدة اختياريًا" : "كلمة المرور"}
               value={form.password}
               onChange={(e) =>
                 setForm({ ...form, password: e.target.value })
@@ -326,12 +383,12 @@ export default function UsersClient() {
                 }
               />
               <label htmlFor="is_active" className="text-sm">
-                Active user
+                مستخدم نشط
               </label>
             </div>
 
             <Button type="submit" disabled={saving} className="w-full">
-              {saving ? "Saving..." : "Save User"}
+              {saving ? "جاري الحفظ..." : "حفظ البيانات"}
             </Button>
           </form>
         </DialogContent>
@@ -343,18 +400,16 @@ export default function UsersClient() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete user?
-            </AlertDialogTitle>
+            <AlertDialogTitle>حذف المستخدم؟</AlertDialogTitle>
             <AlertDialogDescription>
-              This action will permanently delete the selected user.
+              سيتم حذف المستخدم المحدد نهائيًا من النظام. هل أنت متأكد؟
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
             <AlertDialogAction onClick={deleteUser}>
-              Delete
+              حذف
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
