@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+
 import { prisma } from "@/app/lib/prisma";
 import { createToken } from "@/lib/auth";
 
@@ -10,28 +11,25 @@ export async function POST(req: Request) {
     const user = await prisma.users.findFirst({
       where: {
         username: body.username,
+        is_active: true,
       },
     });
 
     if (!user) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid username or password",
-        },
+        { success: false, message: "Invalid username or password" },
         { status: 401 }
       );
     }
 
-    const passwordValid =
-      body.password === "admin123";
+    const passwordValid = await bcrypt.compare(
+      body.password,
+      user.password_hash
+    );
 
     if (!passwordValid) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid username or password",
-        },
+        { success: false, message: "Invalid username or password" },
         { status: 401 }
       );
     }
@@ -45,19 +43,18 @@ export async function POST(req: Request) {
 
     response.cookies.set("token", token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
+      maxAge: 60 * 60 * 24 * 7,
     });
 
     return response;
   } catch (error) {
+    console.error(error);
+
     return NextResponse.json(
-      {
-        success: false,
-        message: "Login failed",
-        error,
-      },
+      { success: false, message: "Login failed" },
       { status: 500 }
     );
   }

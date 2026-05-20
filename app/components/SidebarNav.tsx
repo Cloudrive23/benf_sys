@@ -2,16 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Locale } from "@/constants/translations";
 
 const navItems = [
-  { href: "/", label: "Dashboard" },
-  { href: "/beneficiaries", label: "Beneficiaries" },
-  { href: "/users", label: "Users" },
-  { href: "/sponsors", label: "Sponsors" },
-  { href: "/reports", label: "Reports" },
+  { href: "/", label: { ar: "لوحة التحكم", en: "Dashboard" } },
+  { href: "/beneficiaries", label: { ar: "المستفيدون", en: "Beneficiaries" } },
+  { href: "/users", label: { ar: "المستخدمون", en: "Users" } },
+  { href: "/sponsors", label: { ar: "الداعمون", en: "Sponsors" } },
+  { href: "/reports", label: { ar: "التقارير", en: "Reports" } },
 ];
 
-export default function SidebarNav() {
+export default function SidebarNav({
+  locale,
+}: {
+  locale: Locale;
+}) {
   const pathname = usePathname();
 
   return (
@@ -32,7 +37,7 @@ export default function SidebarNav() {
                 : "text-gray-300 hover:bg-gray-800 hover:text-white"
             }`}
           >
-            {item.label}
+            {item.label[locale]}
           </Link>
         );
       })}
