@@ -1,13 +1,63 @@
-export default function Home() {
-  return (
-    <main className="p-10">
-      <h1 className="text-3xl font-bold">
-        Beneficiary System Ready
-      </h1>
+import { prisma } from "./lib/prisma";
+import AppLayout from "./components/AppLayout";
 
-      <p className="mt-4">
-        Next.js + Prisma + Supabase connected successfully
-      </p>
-    </main>
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const [usersCount, beneficiariesCount, sponsorsCount] =
+    await Promise.all([
+      prisma.users.count(),
+      prisma.beneficiaries.count(),
+      prisma.sponsors.count(),
+    ]);
+
+  return (
+    <AppLayout>
+
+      <div className="mb-10">
+        <h2 className="text-4xl font-bold">
+          Dashboard
+        </h2>
+
+        <p className="text-gray-400 mt-2">
+          Live system statistics
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800">
+          <h3 className="text-gray-400 text-sm">
+            Beneficiaries
+          </h3>
+
+          <p className="text-3xl font-bold mt-2">
+            {beneficiariesCount}
+          </p>
+        </div>
+
+        <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800">
+          <h3 className="text-gray-400 text-sm">
+            Sponsors
+          </h3>
+
+          <p className="text-3xl font-bold mt-2">
+            {sponsorsCount}
+          </p>
+        </div>
+
+        <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800">
+          <h3 className="text-gray-400 text-sm">
+            Users
+          </h3>
+
+          <p className="text-3xl font-bold mt-2">
+            {usersCount}
+          </p>
+        </div>
+
+      </div>
+
+    </AppLayout>
   );
 }
