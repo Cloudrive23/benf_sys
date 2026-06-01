@@ -80,6 +80,7 @@ model beneficiaries {
   father_id    String? @db.Uuid
   mother_id    String? @db.Uuid
   guardian_id  String? @db.Uuid
+  social_notes      String?
   created_by                  String?                       @db.Uuid
   updated_by                  String?                       @db.Uuid
   created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
@@ -88,6 +89,7 @@ model beneficiaries {
   branches                    branches                      @relation(fields: [branch_id], references: [id])
   centers                     centers?                      @relation(fields: [center_id], references: [id])
   sites                       sites                         @relation(fields: [site_id], references: [id])
+  status_id String? @db.Uuid
   beneficiary_attachments     beneficiary_attachments[]
   beneficiary_change_logs     beneficiary_change_logs[]
   beneficiary_dynamic_data    beneficiary_dynamic_data[]
@@ -707,4 +709,92 @@ model system_settings {
 
   created_at        DateTime? @default(now()) @db.Timestamp(6)
   updated_at        DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model beneficiary_field_groups {
+  id            String   @id @default(uuid()) @db.Uuid
+  group_code    String   @unique @db.VarChar(50)
+  group_name_ar String   @db.VarChar(255)
+  group_name_en String?  @db.VarChar(255)
+  sort_order    Int      @default(0)
+  is_active     Boolean  @default(true)
+
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  fields beneficiary_custom_fields[]
+  tab_id String? @db.Uuid
+    tab beneficiary_field_tabs? @relation(fields: [tab_id], references: [id])
+}
+
+model beneficiary_custom_fields {
+  id             String   @id @default(uuid()) @db.Uuid
+
+  group_id       String   @db.Uuid
+
+  field_code     String   @db.VarChar(100)
+
+  field_label_ar String   @db.VarChar(255)
+  field_label_en String?  @db.VarChar(255)
+
+  field_type     String   @default("text") @db.VarChar(50)
+
+  lookup_type    String?  @db.VarChar(100)
+
+  is_required    Boolean  @default(false)
+
+  sort_order     Int      @default(0)
+
+  is_active      Boolean  @default(true)
+
+  
+  placeholder_ar String? @db.VarChar(255)
+  placeholder_en String? @db.VarChar(255)
+  help_text_ar   String?
+  help_text_en   String?
+
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  group beneficiary_field_groups @relation(fields: [group_id], references: [id])
+
+  values beneficiary_custom_values[]
+}
+
+model beneficiary_custom_values {
+  id String @id @default(uuid()) @db.Uuid
+
+  beneficiary_id String @db.Uuid
+  field_id       String @db.Uuid
+
+  value_text     String?
+  value_number   Decimal?
+  value_date     DateTime?
+  value_boolean  Boolean?
+
+  lookup_id      String? @db.Uuid
+
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  field beneficiary_custom_fields @relation(fields: [field_id], references: [id])
+
+  @@unique([beneficiary_id, field_id])
+}
+
+model beneficiary_field_tabs {
+  id          String   @id @default(uuid()) @db.Uuid
+
+  tab_code    String   @unique @db.VarChar(50)
+  tab_name_ar String   @db.VarChar(255)
+  tab_name_en String?  @db.VarChar(255)
+
+  sort_order  Int      @default(0)
+
+  is_active   Boolean  @default(true)
+
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  groups beneficiary_field_groups[]
 }

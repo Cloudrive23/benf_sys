@@ -14,10 +14,17 @@ export const createBeneficiarySchema = z.object({
   branch_id: z.string().uuid("الفرع مطلوب"),
   site_id: z.string().uuid("الموقع مطلوب"),
   center_id: z.string().optional().or(z.literal("")),
-
+  
+  status_id: z.string().optional().or(z.literal("")),
+  
   father_id: z.string().optional().or(z.literal("")),
   mother_id: z.string().optional().or(z.literal("")),
   guardian_id: z.string().optional().or(z.literal("")),
+
+  alternative_phone: z.string().optional().or(z.literal("")),
+
+  
+  social_notes: z.string().optional().or(z.literal("")),
 
   first_name: z.string().min(1, "الاسم الأول مطلوب"),
   father_name: z.string().min(1, "اسم الأب مطلوب"),
@@ -28,7 +35,7 @@ export const createBeneficiarySchema = z.object({
   birth_date: z.string().optional().or(z.literal("")),
   identity_number: z.string().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
-  address: z.string().optional().or(z.literal("")),
+address: z.string().optional().or(z.literal("")),
 
   beneficiary_type: z.string().optional(),
   current_status: z.string().optional(),

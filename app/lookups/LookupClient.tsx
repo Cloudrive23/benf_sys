@@ -23,6 +23,7 @@ const titles: Record<string, string> = {
   nationalities: "الجنسيات",
   education_levels: "المستويات التعليمية",
   health_statuses: "الحالات الصحية",
+  beneficiary_statuses: "حالات المستفيد",
 };
 
 export default function LookupClient({

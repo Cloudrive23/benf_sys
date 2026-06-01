@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import BeneficiaryFamilyTab from "./components/BeneficiaryFamilyTab";
+
+import FathersClient from "@/app/fathers/FathersClient";
+import MothersClient from "@/app/mothers/MothersClient";
+import GuardiansClient from "@/app/guardians/GuardiansClient";
+
+import BeneficiarySocialTab from "./components/BeneficiarySocialTab";
+
 import EntityPicker, {
   type EntityPickerItem,
 } from "@/app/components/entity-picker/EntityPicker";
@@ -51,6 +58,9 @@ const emptyForm = {
   father: { full_name: "", phone: "", identity_number: "" },
   mother: { full_name: "", phone: "", identity_number: "" },
   guardian: { full_name: "", phone: "", identity_number: "" },
+  alternative_phone: "",
+  social_notes: "",
+  status_id: "",
 };
 
 export default function BeneficiariesClient() {
@@ -60,13 +70,23 @@ export default function BeneficiariesClient() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("basic");
+  const [inlineCreateType, setInlineCreateType] = useState<"" | "father" | "mother" | "guardian">("");
   const [branches, setBranches] = useState<OrgUnit[]>([]);
   const [sites, setSites] = useState<OrgUnit[]>([]);
   const [centers, setCenters] = useState<OrgUnit[]>([]);
   const [fathers, setFathers] = useState<EntityPickerItem[]>([]);
   const [mothers, setMothers] = useState<EntityPickerItem[]>([]);
   const [guardians, setGuardians] = useState<EntityPickerItem[]>([]);
+  const [beneficiaryStatuses, setBeneficiaryStatuses] = useState<any[]>([]);
 
+  async function loadBeneficiaryStatuses() {
+		  const res = await fetch("/api/lookups?type=beneficiary_statuses");
+		  const data = await res.json();
+
+		  if (data.success) {
+			setBeneficiaryStatuses(data.data || []);
+		  }
+		}
   async function load() {
 			const res = await fetch("/api/beneficiaries", { cache: "no-store" });
 			const data = await res.json();
@@ -155,10 +175,10 @@ export default function BeneficiariesClient() {
   useEffect(() => {
 				  load();
 				  loadLookups();
-
 				  loadFathers();
 				  loadMothers();
 				  loadGuardians();
+				  loadBeneficiaryStatuses();
 				}, []);
 
   const filtered = useMemo(() => {
@@ -194,13 +214,16 @@ export default function BeneficiariesClient() {
       birth_date: item.birth_date ? item.birth_date.slice(0, 10) : "",
       identity_number: item.identity_number || "",
       phone: item.phone || "",
-      address: item.address || "",
+	  alternative_phone: item.alternative_phone || "",
+	  address: item.address || "",
+	  social_notes: item.social_notes || "",
       branch_id: item.branch_id || branches[0]?.id || "",
       site_id: item.site_id || sites[0]?.id || "",
       center_id: item.center_id || "",
 	  father_id: item.father_id || "",
 	  mother_id: item.mother_id || "",
-	  guardian_id: item.guardian_id || "",	  
+	  guardian_id: item.guardian_id || "",	
+	  status_id: item.status_id || "",
       father: {
         full_name: father?.full_name || "",
         identity_number: father?.identity_number || "",
@@ -392,6 +415,16 @@ export default function BeneficiariesClient() {
 			  >
 				الأسرة
 			  </button>
+			  
+			  <button
+				  type="button"
+				  onClick={() => setActiveTab("social")}
+				  className={`px-4 py-2 rounded-lg ${
+					activeTab === "social" ? "bg-green-600 text-white" : ""
+				  }`}
+				>
+				  الاجتماعية
+				</button>
 			</div>
 			
             {activeTab === "basic" && (
@@ -403,14 +436,25 @@ export default function BeneficiariesClient() {
 
 			{activeTab === "family" && (
 				  <BeneficiaryFamilyTab
-					form={form}
-					setForm={setForm}
-					fathers={fathers}
-					mothers={mothers}
-					guardians={guardians}
+					  form={form}
+					  setForm={setForm}
+					  fathers={fathers}
+					  mothers={mothers}
+					  guardians={guardians}
+					  onCreateFather={() => setInlineCreateType("father")}
+					  onCreateMother={() => setInlineCreateType("mother")}
+					  onCreateGuardian={() => setInlineCreateType("guardian")}
 				  />
 				)}
 
+			{activeTab === "social" && (
+				  <BeneficiarySocialTab
+					  form={form}
+					  setForm={setForm}
+					  statuses={beneficiaryStatuses}
+					/>
+				)}	
+				
               
               <div className="flex justify-end gap-3 pt-4">
                 <Button
@@ -438,6 +482,91 @@ export default function BeneficiariesClient() {
           </div>
         </div>
       )}
+	  
+	  {inlineCreateType && (
+				  <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
+					<div
+					  className="w-full max-w-xl rounded-2xl border p-6 space-y-4"
+					  style={{
+						backgroundColor: "var(--app-surface)",
+						borderColor: "var(--app-border)",
+					  }}
+					>
+					  <div className="flex items-center justify-between">
+						<h2 className="text-xl font-bold">
+
+
+				{(inlineCreateType === "father" ||
+				  inlineCreateType === "mother" ||
+				  inlineCreateType === "guardian") && (
+					  <div className="fixed inset-0 z-[60] bg-black/70 overflow-y-auto p-6">
+						<div
+						  className="rounded-2xl border p-6"
+						  style={{
+							backgroundColor: "var(--app-bg)",
+							borderColor: "var(--app-border)",
+						  }}
+						>
+						  <div className="flex justify-end mb-4">
+							<Button
+							  type="button"
+							  variant="outline"
+							  onClick={async () => {
+								await loadFathers();
+								await loadMothers();
+								await loadGuardians();
+								setInlineCreateType("");
+							  }}
+							>
+							  إغلاق
+							</Button>
+						  </div>
+
+						  {inlineCreateType === "father" && <FathersClient />}
+						  {inlineCreateType === "mother" && <MothersClient />}
+						  {inlineCreateType === "guardian" && <GuardiansClient />}
+						</div>
+					  </div>
+					)}
+			
+			
+			{inlineCreateType === "father"
+							? "إضافة أب"
+							: inlineCreateType === "mother"
+							? "إضافة أم"
+							: "إضافة معيل"}
+						</h2>
+
+						<button
+							  type="button"
+							  onClick={async () => {
+								await loadFathers();
+								setInlineCreateType("");
+							  }}
+							  className="text-3xl"
+							>
+							  ✕
+							</button>
+					  </div>
+
+			
+					  <div className="flex justify-end">
+						<Button
+						  type="button"
+						  variant="outline"
+						  onClick={async () => {
+							await loadFathers();
+							await loadMothers();
+							await loadGuardians();
+							setInlineCreateType("");
+						  }}
+						>
+						  إغلاق
+						</Button>
+					  </div>
+					</div>
+				  </div>
+				)}
     </div>
   );
 }

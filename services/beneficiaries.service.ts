@@ -69,8 +69,11 @@ function baseBeneficiaryData(data: any, options?: { allowCodeUpdate?: boolean })
 
     identity_number: data.identity_number || null,
     phone: data.phone || null,
-    address: data.address || null,
-
+	alternative_phone: data.alternative_phone || null,
+	address: data.address || null,
+	social_notes: data.social_notes || null,
+	status_id: data.status_id || null,
+	
     current_status: data.current_status || "draft",
     is_active: data.is_active ?? true,
   };

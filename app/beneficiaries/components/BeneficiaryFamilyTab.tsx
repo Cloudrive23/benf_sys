@@ -10,6 +10,9 @@ export default function BeneficiaryFamilyTab({
   fathers,
   mothers,
   guardians,
+  onCreateFather,
+  onCreateMother,
+  onCreateGuardian,
 }: {
   form: any;
   setForm: any;
@@ -29,7 +32,7 @@ export default function BeneficiaryFamilyTab({
             father_id: item.id,
           })
         }
-        onCreate={() => {}}
+        onCreate={onCreateFather}
         createLabel="إضافة أب"
       />
 
@@ -43,7 +46,7 @@ export default function BeneficiaryFamilyTab({
             mother_id: item.id,
           })
         }
-        onCreate={() => {}}
+        onCreate={onCreateMother}
         createLabel="إضافة أم"
       />
 
@@ -57,7 +60,7 @@ export default function BeneficiaryFamilyTab({
             guardian_id: item.id,
           })
         }
-        onCreate={() => {}}
+        onCreate={onCreateGuardian}
         createLabel="إضافة معيل"
       />
     </div>

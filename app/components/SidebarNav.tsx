@@ -50,6 +50,7 @@ const navGroups = [
 	  {href: "/lookups/nationalities",label: { ar: "الجنسيات", en: "Nationalities" },},
 	  {href: "/lookups/education_levels",label: { ar: "المستويات التعليمية", en: "Education Levels" },},
 	  {href: "/lookups/health_statuses",label: { ar: "الحالات الصحية", en: "Health Statuses" },},
+	  {href: "/lookups/beneficiary_statuses",label: { ar: "حالات المستفيد", en: "Beneficiary Statuses" },},
     ],
   },
   
