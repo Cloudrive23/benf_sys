@@ -15,6 +15,10 @@ export const createBeneficiarySchema = z.object({
   site_id: z.string().uuid("الموقع مطلوب"),
   center_id: z.string().optional().or(z.literal("")),
 
+  father_id: z.string().optional().or(z.literal("")),
+  mother_id: z.string().optional().or(z.literal("")),
+  guardian_id: z.string().optional().or(z.literal("")),
+
   first_name: z.string().min(1, "الاسم الأول مطلوب"),
   father_name: z.string().min(1, "اسم الأب مطلوب"),
   grandfather_name: z.string().optional().or(z.literal("")),

@@ -52,6 +52,9 @@ function baseBeneficiaryData(data: any, options?: { allowCodeUpdate?: boolean })
     branch_id: data.branch_id,
     site_id: data.site_id,
     center_id: data.center_id || null,
+	father_id: data.father_id || null,
+	mother_id: data.mother_id || null,
+	guardian_id: data.guardian_id || null,
 
     beneficiary_type: data.beneficiary_type || "orphan",
 

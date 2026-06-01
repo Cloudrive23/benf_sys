@@ -1,11 +1,17 @@
 "use client";
 
+import BeneficiaryBasicTab from "./components/BeneficiaryBasicTab";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import BeneficiaryFamilyTab from "./components/BeneficiaryFamilyTab";
+import EntityPicker, {
+  type EntityPickerItem,
+} from "@/app/components/entity-picker/EntityPicker";
+
 
 type OrgUnit = { id: string; branch_name_ar?: string; site_name_ar?: string; center_name_ar?: string; branch_id?: string; site_id?: string };
 
@@ -39,6 +45,9 @@ const emptyForm = {
   branch_id: "",
   site_id: "",
   center_id: "",
+  father_id: "",
+  mother_id: "",
+  guardian_id: "",
   father: { full_name: "", phone: "", identity_number: "" },
   mother: { full_name: "", phone: "", identity_number: "" },
   guardian: { full_name: "", phone: "", identity_number: "" },
@@ -50,53 +59,107 @@ export default function BeneficiariesClient() {
   const [form, setForm] = useState(emptyForm);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("basic");
   const [branches, setBranches] = useState<OrgUnit[]>([]);
   const [sites, setSites] = useState<OrgUnit[]>([]);
   const [centers, setCenters] = useState<OrgUnit[]>([]);
+  const [fathers, setFathers] = useState<EntityPickerItem[]>([]);
+  const [mothers, setMothers] = useState<EntityPickerItem[]>([]);
+  const [guardians, setGuardians] = useState<EntityPickerItem[]>([]);
 
   async function load() {
-    const res = await fetch("/api/beneficiaries", { cache: "no-store" });
-    const data = await res.json();
+			const res = await fetch("/api/beneficiaries", { cache: "no-store" });
+			const data = await res.json();
 
-    if (data.success) setItems(data.data || []);
-    else toast.error(data.message || "تعذر تحميل البيانات");
-  }
+			if (data.success) setItems(data.data || []);
+			else toast.error(data.message || "تعذر تحميل البيانات");
+		  }
 
   async function loadLookups() {
-    const res = await fetch("/api/lookups/org-units", { cache: "no-store" });
-    const data = await res.json();
+			const res = await fetch("/api/lookups/org-units", { cache: "no-store" });
+			const data = await res.json();
 
-    if (data.success) {
-      setBranches(data.data.branches || []);
-      setSites(data.data.sites || []);
-      setCenters(data.data.centers || []);
+			if (data.success) {
+			  setBranches(data.data.branches || []);
+			  setSites(data.data.sites || []);
+			  setCenters(data.data.centers || []);
 
-      setForm((old) => ({
-        ...old,
-        branch_id: old.branch_id || data.data.branches?.[0]?.id || "",
-        site_id: old.site_id || data.data.sites?.[0]?.id || "",
-      }));
-    }
-  }
+			  setForm((old) => ({
+				...old,
+				branch_id: old.branch_id || data.data.branches?.[0]?.id || "",
+				site_id: old.site_id || data.data.sites?.[0]?.id || "",
+			  }));
+			}
+		  }
 
   async function loadNextNumbers() {
-    const res = await fetch("/api/beneficiaries/next-numbers", { cache: "no-store" });
-    const data = await res.json();
+			const res = await fetch("/api/beneficiaries/next-numbers", { cache: "no-store" });
+			const data = await res.json();
 
-    if (data.success) {
-      setForm((old) => ({
-        ...old,
-        beneficiary_code: data.data.beneficiary_code,
-        file_number: data.data.file_number,
-        external_reference: data.data.beneficiary_code,
-      }));
-    }
-  }
+			if (data.success) {
+			  setForm((old) => ({
+				...old,
+				beneficiary_code: data.data.beneficiary_code,
+				file_number: data.data.file_number,
+				external_reference: data.data.beneficiary_code,
+			  }));
+			}
+		  }
 
+  async function loadFathers() {
+		  const res = await fetch("/api/fathers");
+		  const data = await res.json();
+
+		  if (data.success) {
+			setFathers(
+			  data.data.map((x: any) => ({
+				id: x.id,
+				code: x.father_code,
+				name: x.full_name_ar,
+			  }))
+			);
+		  }
+		}
+
+   async function loadMothers() {
+		  const res = await fetch("/api/mothers");
+		  const data = await res.json();
+
+		  if (data.success) {
+			setMothers(
+			  data.data.map((x: any) => ({
+				id: x.id,
+				code: x.mother_code,
+				name: x.full_name_ar,
+			  }))
+			);
+		  }
+		}
+
+  async function loadGuardians() {
+			  const res = await fetch("/api/guardians");
+			  const data = await res.json();
+
+			  if (data.success) {
+				setGuardians(
+				  data.data.map((x: any) => ({
+					id: x.id,
+					code: x.guardian_code,
+					name: x.full_name_ar,
+				  }))
+				);
+			  }
+			}
+  
+  
   useEffect(() => {
-    load();
-    loadLookups();
-  }, []);
+				  load();
+				  loadLookups();
+
+				  loadFathers();
+				  loadMothers();
+				  loadGuardians();
+				}, []);
 
   const filtered = useMemo(() => {
     return items.filter((x) =>
@@ -135,6 +198,9 @@ export default function BeneficiariesClient() {
       branch_id: item.branch_id || branches[0]?.id || "",
       site_id: item.site_id || sites[0]?.id || "",
       center_id: item.center_id || "",
+	  father_id: item.father_id || "",
+	  mother_id: item.mother_id || "",
+	  guardian_id: item.guardian_id || "",	  
       father: {
         full_name: father?.full_name || "",
         identity_number: father?.identity_number || "",
@@ -306,79 +372,46 @@ export default function BeneficiariesClient() {
             </div>
 
             <form onSubmit={save} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input readOnly placeholder="الرقم الثابت" value={form.beneficiary_code} />
-                <Input required placeholder="رقم الملف" value={form.file_number} onChange={(e) => setForm({ ...form, file_number: e.target.value })} />
-                <Input placeholder="الرقم الخارجي" value={form.external_reference} onChange={(e) => setForm({ ...form, external_reference: e.target.value })} />
-              </div>
+			<div className="flex gap-2 border-b pb-3">
+			  <button
+				type="button"
+				onClick={() => setActiveTab("basic")}
+				className={`px-4 py-2 rounded-lg ${
+				  activeTab === "basic" ? "bg-green-600 text-white" : ""
+				}`}
+			  >
+				البيانات الأساسية
+			  </button>
 
+			  <button
+				type="button"
+				onClick={() => setActiveTab("family")}
+				className={`px-4 py-2 rounded-lg ${
+				  activeTab === "family" ? "bg-green-600 text-white" : ""
+				}`}
+			  >
+				الأسرة
+			  </button>
+			</div>
+			
+            {activeTab === "basic" && (
+				  <BeneficiaryBasicTab
+					form={form}
+					setForm={setForm}
+				  />
+				)}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <select className="rounded-md border bg-transparent p-2" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} required>
-                  {branches.map((b: any) => (
-                    <option key={b.id} value={b.id}>{b.branch_name_ar}</option>
-                  ))}
-                </select>
+			{activeTab === "family" && (
+				  <BeneficiaryFamilyTab
+					form={form}
+					setForm={setForm}
+					fathers={fathers}
+					mothers={mothers}
+					guardians={guardians}
+				  />
+				)}
 
-                <select className="rounded-md border bg-transparent p-2" value={form.site_id} onChange={(e) => setForm({ ...form, site_id: e.target.value })} required>
-                  {sites.filter((x: any) => !form.branch_id || x.branch_id === form.branch_id).map((x: any) => (
-                    <option key={x.id} value={x.id}>{x.site_name_ar}</option>
-                  ))}
-                </select>
-
-                <select className="rounded-md border bg-transparent p-2" value={form.center_id} onChange={(e) => setForm({ ...form, center_id: e.target.value })}>
-                  <option value="">بدون مركز</option>
-                  {centers.filter((x: any) => !form.site_id || x.site_id === form.site_id).map((x: any) => (
-                    <option key={x.id} value={x.id}>{x.center_name_ar}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Input required placeholder="الاسم الأول" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
-                <Input required placeholder="اسم الأب" value={form.father_name} onChange={(e) => setForm({ ...form, father_name: e.target.value })} />
-                <Input placeholder="اسم الجد" value={form.grandfather_name} onChange={(e) => setForm({ ...form, grandfather_name: e.target.value })} />
-                <Input required placeholder="اللقب" value={form.family_name} onChange={(e) => setForm({ ...form, family_name: e.target.value })} />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <select className="rounded-md border bg-transparent p-2" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
-                  <option value="male">ذكر</option>
-                  <option value="female">أنثى</option>
-                </select>
-                <Input type="date" value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })} />
-                <Input placeholder="رقم الهوية" value={form.identity_number} onChange={(e) => setForm({ ...form, identity_number: e.target.value })} />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input placeholder="الهاتف" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-                <Input placeholder="العنوان" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
-              </div>
-
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border rounded-xl p-4">
-                <div className="space-y-2">
-                  <div className="font-semibold">بيانات الأب</div>
-                  <Input placeholder="اسم الأب الكامل" value={form.father.full_name} onChange={(e) => setForm({ ...form, father: { ...form.father, full_name: e.target.value } })} />
-                  <Input placeholder="هوية الأب" value={form.father.identity_number} onChange={(e) => setForm({ ...form, father: { ...form.father, identity_number: e.target.value } })} />
-                  <Input placeholder="هاتف الأب" value={form.father.phone} onChange={(e) => setForm({ ...form, father: { ...form.father, phone: e.target.value } })} />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="font-semibold">بيانات الأم</div>
-                  <Input placeholder="اسم الأم الكامل" value={form.mother.full_name} onChange={(e) => setForm({ ...form, mother: { ...form.mother, full_name: e.target.value } })} />
-                  <Input placeholder="هوية الأم" value={form.mother.identity_number} onChange={(e) => setForm({ ...form, mother: { ...form.mother, identity_number: e.target.value } })} />
-                  <Input placeholder="هاتف الأم" value={form.mother.phone} onChange={(e) => setForm({ ...form, mother: { ...form.mother, phone: e.target.value } })} />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="font-semibold">بيانات المعيل</div>
-                  <Input placeholder="اسم المعيل الكامل" value={form.guardian.full_name} onChange={(e) => setForm({ ...form, guardian: { ...form.guardian, full_name: e.target.value } })} />
-                  <Input placeholder="هوية المعيل" value={form.guardian.identity_number} onChange={(e) => setForm({ ...form, guardian: { ...form.guardian, identity_number: e.target.value } })} />
-                  <Input placeholder="هاتف المعيل" value={form.guardian.phone} onChange={(e) => setForm({ ...form, guardian: { ...form.guardian, phone: e.target.value } })} />
-                </div>
-              </div>
-
+              
               <div className="flex justify-end gap-3 pt-4">
                 <Button
                   type="button"

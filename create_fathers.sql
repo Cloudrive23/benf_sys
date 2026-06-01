@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS fathers (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), father_code VARCHAR(50) UNIQUE NOT NULL, branch_id UUID NOT NULL REFERENCES branches(id), full_name_ar VARCHAR(255) NOT NULL, full_name_en VARCHAR(255), identity_number VARCHAR(100), birth_date DATE, death_date DATE, death_reason_id UUID REFERENCES lookups(id), phone VARCHAR(50), address TEXT, occupation VARCHAR(255), notes TEXT, is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP); 
+CREATE UNIQUE INDEX IF NOT EXISTS ux_fathers_identity ON fathers(identity_number) WHERE identity_number IS NOT NULL AND is_deleted = false; 
+CREATE INDEX IF NOT EXISTS idx_fathers_branch ON fathers(branch_id); 
+CREATE INDEX IF NOT EXISTS idx_fathers_name ON fathers(full_name_ar); 

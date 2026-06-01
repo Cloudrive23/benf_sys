@@ -77,6 +77,9 @@ model beneficiaries {
   current_status              String?                       @default("draft") @db.VarChar(50)
   notes                       String?
   is_active                   Boolean?                      @default(true)
+  father_id    String? @db.Uuid
+  mother_id    String? @db.Uuid
+  guardian_id  String? @db.Uuid
   created_by                  String?                       @db.Uuid
   updated_by                  String?                       @db.Uuid
   created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
@@ -563,4 +566,145 @@ model users {
   @@index([branch_id], map: "idx_users_branch_id")
   @@index([email], map: "idx_users_email")
   @@index([username], map: "idx_users_username")
+}
+model lookups {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lookup_type  String   @db.VarChar(100)
+  code         String?  @db.VarChar(100)
+  name_ar      String   @db.VarChar(255)
+  name_en      String?  @db.VarChar(255)
+  notes        String?
+  sort_order   Int?     @default(0)
+  is_active    Boolean? @default(true)
+  is_deleted   Boolean? @default(false)
+
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+  updated_at   DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([lookup_type])
+}
+
+model fathers {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  father_code     String    @unique @db.VarChar(50)
+
+  branch_id       String    @db.Uuid
+
+  full_name_ar    String    @db.VarChar(255)
+  full_name_en    String?   @db.VarChar(255)
+
+  identity_number String?   @db.VarChar(100)
+
+  birth_date      DateTime? @db.Date
+  death_date      DateTime? @db.Date
+
+  death_reason_id String?   @db.Uuid
+
+  phone           String?   @db.VarChar(50)
+  address         String?
+  occupation      String?   @db.VarChar(255)
+  occupation_id    String?   @db.Uuid
+  notes           String?
+
+  is_active       Boolean?  @default(true)
+  is_deleted      Boolean?  @default(false)
+
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  updated_at      DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([branch_id])
+  @@index([full_name_ar])
+}
+model mothers {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mother_code       String    @unique @db.VarChar(50)
+
+  branch_id         String    @db.Uuid
+
+  full_name_ar      String    @db.VarChar(255)
+  full_name_en      String?   @db.VarChar(255)
+
+  identity_number   String?   @db.VarChar(100)
+  birth_date        DateTime? @db.Date
+  death_date        DateTime? @db.Date
+
+  death_reason_id   String?   @db.Uuid
+  marital_status_id String?   @db.Uuid
+  gender_id         String?   @db.Uuid
+  occupation_id     String?   @db.Uuid
+  nationality_id    String?   @db.Uuid
+  health_status_id  String?   @db.Uuid
+
+  is_guardian       Boolean?  @default(false)
+  is_alive          Boolean?  @default(true)
+
+  phone             String?   @db.VarChar(50)
+  address           String?
+  notes             String?
+
+  is_active         Boolean?  @default(true)
+  is_deleted        Boolean?  @default(false)
+
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  updated_at        DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([branch_id])
+  @@index([full_name_ar])
+}
+
+model guardians {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  guardian_code        String    @unique @db.VarChar(50)
+
+  branch_id            String    @db.Uuid
+
+  full_name_ar         String    @db.VarChar(255)
+  full_name_en         String?   @db.VarChar(255)
+
+  identity_number      String?   @db.VarChar(100)
+  birth_date           DateTime? @db.Date
+
+  gender_id            String?   @db.Uuid
+  relationship_type_id String?   @db.Uuid
+  marital_status_id    String?   @db.Uuid
+  occupation_id        String?   @db.Uuid
+  nationality_id       String?   @db.Uuid
+  health_status_id     String?   @db.Uuid
+
+  phone                String?   @db.VarChar(50)
+  address              String?
+  notes                String?
+
+  is_mother            Boolean?  @default(false)
+  mother_id            String?   @db.Uuid
+
+  is_active            Boolean?  @default(true)
+  is_deleted           Boolean?  @default(false)
+  is_alive       Boolean?  @default(true)
+  death_date     DateTime? @db.Date
+  death_reason_id String?  @db.Uuid
+  created_at           DateTime? @default(now()) @db.Timestamp(6)
+  updated_at           DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([branch_id])
+  @@index([full_name_ar])
+}
+
+model system_settings {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_name String?   @db.VarChar(255)
+
+  primary_color     String?   @default("#2563eb") @db.VarChar(20)
+  secondary_color   String?   @default("#1e293b") @db.VarChar(20)
+
+  font_family       String?   @default("Cairo") @db.VarChar(100)
+  font_size         String?   @default("medium") @db.VarChar(20)
+
+  dark_mode         Boolean?  @default(true)
+  sidebar_mode      String?   @default("expanded") @db.VarChar(50)
+
+  logo_url          String?
+
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  updated_at        DateTime? @default(now()) @db.Timestamp(6)
 }
