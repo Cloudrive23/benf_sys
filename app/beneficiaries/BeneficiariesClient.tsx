@@ -15,6 +15,8 @@ import GuardiansClient from "@/app/guardians/GuardiansClient";
 
 import BeneficiarySocialTab from "./components/BeneficiarySocialTab";
 
+import DynamicBeneficiaryFields from "./components/dynamic/DynamicBeneficiaryFields";
+
 import EntityPicker, {
   type EntityPickerItem,
 } from "@/app/components/entity-picker/EntityPicker";
@@ -79,6 +81,8 @@ export default function BeneficiariesClient() {
   const [guardians, setGuardians] = useState<EntityPickerItem[]>([]);
   const [beneficiaryStatuses, setBeneficiaryStatuses] = useState<any[]>([]);
 
+  const [dynamicValues, setDynamicValues] = useState<any>({});
+  
   async function loadBeneficiaryStatuses() {
 		  const res = await fetch("/api/lookups?type=beneficiary_statuses");
 		  const data = await res.json();
@@ -195,6 +199,18 @@ export default function BeneficiariesClient() {
     )?.related_persons;
   }
 
+	  async function loadDynamicValues(beneficiaryId: string) {
+				  const res = await fetch(
+					`/api/beneficiary-custom-values?beneficiary_id=${beneficiaryId}`,
+					{ cache: "no-store" }
+				  );
+
+				  const data = await res.json();
+
+				  if (data.success) {
+					setDynamicValues(data.data || {});
+				  }
+				}
   function edit(item: any) {
     const father = getRelated(item, "father");
     const mother = getRelated(item, "mother");
@@ -241,7 +257,8 @@ export default function BeneficiariesClient() {
       },
       current_status: item.current_status || "draft",
     });
-    setOpen(true);
+		loadDynamicValues(item.id);
+		setOpen(true);
   }
 
   async function save(e: React.FormEvent) {
@@ -257,6 +274,15 @@ export default function BeneficiariesClient() {
     const data = await res.json();
 
     if (data.success) {
+		const beneficiaryId = data.data?.id || form.id;
+			await fetch("/api/beneficiary-custom-values", {
+			  method: "POST",
+			  headers: { "Content-Type": "application/json" },
+			  body: JSON.stringify({
+				beneficiary_id: beneficiaryId,
+				values: dynamicValues,
+			  }),
+			});
       toast.success("تم حفظ بيانات المستفيد بنجاح");
       setOpen(false);
       setForm(emptyForm);
@@ -303,7 +329,9 @@ export default function BeneficiariesClient() {
               branch_id: branches[0]?.id || "",
               site_id: sites[0]?.id || "",
             });
-            setOpen(true);
+							
+				setDynamicValues({});
+				setOpen(true);
             await loadNextNumbers();
           }}
           style={{ backgroundColor: "var(--app-primary)", color: "white" }}
@@ -425,6 +453,16 @@ export default function BeneficiariesClient() {
 				>
 				  الاجتماعية
 				</button>
+				
+				<button
+				  type="button"
+				  onClick={() => setActiveTab("dynamic")}
+				  className={`px-4 py-2 rounded-lg ${
+					activeTab === "dynamic" ? "bg-green-600 text-white" : ""
+				  }`}
+				>
+				  البيانات الإضافية
+				</button>
 			</div>
 			
             {activeTab === "basic" && (
@@ -454,7 +492,13 @@ export default function BeneficiariesClient() {
 					  statuses={beneficiaryStatuses}
 					/>
 				)}	
-				
+			
+			{activeTab === "dynamic" && (
+			  <DynamicBeneficiaryFields
+				values={dynamicValues}
+				setValues={setDynamicValues}
+			  />
+			)}
               
               <div className="flex justify-end gap-3 pt-4">
                 <Button
