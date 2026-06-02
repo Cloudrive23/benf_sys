@@ -139,3 +139,14 @@ button {
 ::placeholder {
   color: var(--app-muted) !important;
 }
+
+select option {
+  background-color: #111827;
+  color: #ffffff;
+}
+
+select,
+select option {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+}

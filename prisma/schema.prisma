@@ -747,6 +747,7 @@ model beneficiary_custom_fields {
 
   is_active      Boolean  @default(true)
 
+  lookup_type_id String? @db.Uuid
   
   placeholder_ar String? @db.VarChar(255)
   placeholder_en String? @db.VarChar(255)
@@ -797,4 +798,17 @@ model beneficiary_field_tabs {
   updated_at  DateTime @updatedAt
 
   groups beneficiary_field_groups[]
+}
+
+model lookup_types {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type_code    String   @unique @db.VarChar(100)
+  type_name_ar String   @db.VarChar(255)
+  type_name_en String?  @db.VarChar(255)
+  sort_order   Int?     @default(0)
+  is_active    Boolean? @default(true)
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+  updated_at   DateTime? @default(now()) @db.Timestamp(6)
+
+  @@map("lookup_types")
 }

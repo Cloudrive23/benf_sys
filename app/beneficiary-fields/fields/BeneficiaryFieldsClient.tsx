@@ -13,31 +13,36 @@ export default function BeneficiaryFieldsClient() {
   const [groups, setGroups] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
 
-  const [form, setForm] = useState({
-    id: "",
-    group_id: "",
-    field_code: "",
-    field_label_ar: "",
-    field_label_en: "",
-    field_type: "text",
-    lookup_type: "",
-    placeholder_ar: "",
-    placeholder_en: "",
-    help_text_ar: "",
-    help_text_en: "",
-    is_required: false,
-    sort_order: 0,
-    is_active: true,
-  });
+  const [lookupTypes, setLookupTypes] = useState<any[]>([]);
+	  
+	const [form, setForm] = useState({
+	  id: "",
+	  group_id: "",
+	  field_code: "",
+	  field_label_ar: "",
+	  field_label_en: "",
+	  field_type: "text",
+	  lookup_type: "",
+	  lookup_type_id: "",
+	  placeholder_ar: "",
+	  placeholder_en: "",
+	  help_text_ar: "",
+	  help_text_en: "",
+	  is_required: false,
+	  sort_order: 0,
+	  is_active: true,
+	});
 
   async function loadData() {
-    const [f, g] = await Promise.all([
-      fetch("/api/beneficiary-custom-fields").then((r) => r.json()),
-      fetch("/api/beneficiary-field-groups").then((r) => r.json()),
-    ]);
+    const [f, g, l] = await Promise.all([
+		  fetch("/api/beneficiary-custom-fields").then((r) => r.json()),
+		  fetch("/api/beneficiary-field-groups").then((r) => r.json()),
+		  fetch("/api/lookup-types").then((r) => r.json()),
+		]);
 
-    if (f.success) setFields(f.data || []);
-    if (g.success) setGroups(g.data || []);
+		if (f.success) setFields(f.data || []);
+		if (g.success) setGroups(g.data || []);
+		if (l.success) setLookupTypes(l.data || []);
   }
 
   useEffect(() => {
@@ -53,6 +58,7 @@ export default function BeneficiaryFieldsClient() {
       field_label_en: "",
       field_type: "text",
       lookup_type: "",
+	  lookup_type_id: "",
       placeholder_ar: "",
       placeholder_en: "",
       help_text_ar: "",
@@ -240,17 +246,28 @@ export default function BeneficiaryFieldsClient() {
           </select>
 
           {form.field_type === "lookup" && (
-            <Input
-              placeholder="lookup type"
-              value={form.lookup_type}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  lookup_type: e.target.value,
-                })
-              }
-            />
-          )}
+			  <select
+				className="w-full border rounded-md p-2"
+				value={form.lookup_type_id}
+				onChange={(e) => {
+				  const selected = lookupTypes.find((x) => x.id === e.target.value);
+
+				  setForm({
+					...form,
+					lookup_type_id: e.target.value,
+					lookup_type: selected?.type_code || "",
+				  });
+				}}
+			  >
+				<option value="">اختر نوع القائمة</option>
+
+				{lookupTypes.map((item) => (
+				  <option key={item.id} value={item.id}>
+					{item.type_name_ar} - {item.type_code}
+				  </option>
+				))}
+			  </select>
+			)}
 
           <Input
             placeholder="Placeholder عربي"
