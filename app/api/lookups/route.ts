@@ -28,6 +28,25 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
+	const last = await prisma.lookups.findMany({
+		  where: {
+			lookup_type: body.lookup_type,
+		  },
+		  select: {
+			code: true,
+		  },
+		});
+
+		const nextCode =
+		  Math.max(
+			0,
+			...last
+			  .map((x) => Number(x.code))
+			  .filter((n) => Number.isFinite(n))
+		  ) + 1;
+
+		body.code = String(nextCode);
+
     const item = await lookupsService.create(body);
 
     return successResponse(item, "تمت الإضافة بنجاح", 201);
