@@ -135,8 +135,8 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
   const currentTab = tabs.find((t) => t.id === activeTab);
 
   return (
-    <div className="space-y-5">
-      <div className="flex gap-2 border-b pb-3">
+	<div className="space-y-5 max-w-full overflow-x-hidden">
+      <div className="flex gap-2 border-b pb-3 overflow-x-auto max-w-full">
         {tabs.map((tab) => (
           <button
             type="button"
@@ -158,7 +158,10 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
       )}
 
       {currentTab?.groups?.map((group: any) => (
-        <div key={group.id} className="rounded-xl border p-4 space-y-4">
+        <div
+		  key={group.id}
+		  className="rounded-xl border p-3 sm:p-4 space-y-4 max-w-full overflow-hidden"
+		>
           <h3 className="font-bold text-lg">{group.group_name_ar}</h3>
 
           {group.fields.length === 0 ? (
@@ -166,9 +169,9 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
               لا توجد حقول داخل هذه المجموعة.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-full">
               {group.fields.map((field: any) => (
-                <div key={field.id}>
+                <div key={field.id} className="min-w-0">
                   <label className="text-sm block mb-2">
                     {field.field_label_ar}
                     {field.is_required && (

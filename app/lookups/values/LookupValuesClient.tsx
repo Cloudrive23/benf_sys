@@ -133,7 +133,8 @@ export default function LookupValuesClient() {
       </div>
 
       <div className="rounded-xl border overflow-hidden">
-        <table className="w-full">
+	   <div className="overflow-x-auto">
+		<table className="w-full min-w-[600px] text-sm">
           <thead>
             <tr className="border-b">
               <th className="p-3 text-right">الكود</th>
@@ -185,8 +186,9 @@ export default function LookupValuesClient() {
               </tr>
             )}
           </tbody>
-        </table>
-      </div>
+		</table>
+	  </div>
+	</div>
 
       <BaseModal
         open={open}

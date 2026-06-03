@@ -16,7 +16,7 @@ export default function BaseModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
       <div
-        className="w-full sm:max-w-6xl h-[95vh] sm:h-auto sm:max-h-[90vh] rounded-2xl sm:rounded-3xl border shadow-2xl overflow-hidden flex flex-col"
+        className="w-[96vw] max-w-[96vw] lg:max-w-[1200px] h-[88vh] rounded-2xl border shadow-2xl overflow-hidden flex flex-col"
         style={{
           backgroundColor: "var(--app-surface)",
           borderColor: "var(--app-border)",
@@ -42,7 +42,7 @@ export default function BaseModal({
           </button>
         </div>
 
-        <div className="p-3 sm:p-6 overflow-y-auto flex-1">
+        <div className="p-3 sm:p-5 overflow-y-auto overflow-x-hidden flex-1 max-w-full">
           {children}
         </div>
       </div>

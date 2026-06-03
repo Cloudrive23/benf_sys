@@ -90,7 +90,8 @@ export default function BeneficiaryFieldTabsClient() {
       </div>
 
       <div className="rounded-xl border overflow-hidden">
-        <table className="w-full">
+	   <div className="overflow-x-auto">
+		<table className="w-full min-w-[800px]">
           <thead>
             <tr className="border-b">
               <th className="p-3 text-right">الكود</th>
@@ -135,7 +136,8 @@ export default function BeneficiaryFieldTabsClient() {
             ))}
           </tbody>
         </table>
-      </div>
+	  </div>
+	</div>
 
       <BaseModal
         open={open}

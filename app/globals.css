@@ -150,3 +150,9 @@ select option {
   background-color: #111827 !important;
   color: #ffffff !important;
 }
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}

@@ -16,15 +16,15 @@ export default async function AppLayout({
 
   return (
     <main
-      dir={dir}
-      className="min-h-screen flex"
+	  dir={dir}
+	  className="min-h-screen flex overflow-x-hidden"
       style={{
         backgroundColor: "var(--app-bg)",
         color: "var(--app-text)",
       }}
     >
       <aside
-        className="w-72 border-r p-6"
+		className="hidden lg:block w-72 shrink-0 border-r p-6"
         style={{
           backgroundColor: "var(--app-sidebar)",
           borderColor: "var(--app-border)",
@@ -43,7 +43,7 @@ export default async function AppLayout({
         <SidebarNav locale={locale} />
       </aside>
 
-      <section className="flex-1">
+      <section className="flex-1 min-w-0">
         <header
           className="h-16 border-b flex items-center justify-between px-8"
           style={{
@@ -87,7 +87,9 @@ export default async function AppLayout({
           </div>
         </header>
 
-        <div className="p-10">{children}</div>
+        <div className="p-4 sm:p-6 lg:p-10 max-w-full overflow-x-hidden">
+		  {children}
+		</div>
       </section>
     <Toaster richColors position="top-center" />
     </main>

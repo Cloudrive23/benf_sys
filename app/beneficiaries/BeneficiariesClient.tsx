@@ -16,6 +16,7 @@ import GuardiansClient from "@/app/guardians/GuardiansClient";
 import BeneficiarySocialTab from "./components/BeneficiarySocialTab";
 
 import DynamicBeneficiaryFields from "./components/dynamic/DynamicBeneficiaryFields";
+import BeneficiaryFamilyMembersTab from "./components/BeneficiaryFamilyMembersTab";
 
 import EntityPicker, {
   type EntityPickerItem,
@@ -422,7 +423,7 @@ export default function BeneficiariesClient() {
               <button onClick={() => setOpen(false)}>✕</button>
             </div>
 
-            <form onSubmit={save} className="space-y-4">
+            <form onSubmit={save} className="flex flex-col h-full min-h-0">
 			<div className="flex gap-2 border-b pb-3">
 			  <button
 				type="button"
@@ -463,8 +464,19 @@ export default function BeneficiariesClient() {
 				>
 				  البيانات الإضافية
 				</button>
-			</div>
+				
+			<button
+			  type="button"
+			  onClick={() => setActiveTab("familyMembers")}
+			  className={`px-4 py-2 rounded-lg ${
+				activeTab === "familyMembers" ? "bg-green-600 text-white" : ""
+			  }`}
+			>
+			   بيانات الاشقاء
+			</button>
 			
+			</div>
+
             {activeTab === "basic" && (
 				  <BeneficiaryBasicTab
 					form={form}
@@ -499,8 +511,12 @@ export default function BeneficiariesClient() {
 				setValues={setDynamicValues}
 			  />
 			)}
+			
+			{activeTab === "familyMembers" && (
+				  <BeneficiaryFamilyMembersTab beneficiaryId={form.id} />
+				)}
               
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="shrink-0 flex justify-end gap-3 pt-4 border-t mt-2">
                 <Button
                   type="button"
                   variant="outline"
