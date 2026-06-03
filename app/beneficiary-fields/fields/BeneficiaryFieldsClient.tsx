@@ -31,6 +31,13 @@ export default function BeneficiaryFieldsClient() {
 	  is_required: false,
 	  sort_order: 0,
 	  is_active: true,
+	  default_value: "",
+		is_readonly: false,
+		min_value: "",
+		max_value: "",
+		min_length: "",
+		max_length: "",
+		validation_pattern: "",
 	});
 
   async function loadData() {
@@ -66,6 +73,13 @@ export default function BeneficiaryFieldsClient() {
       is_required: false,
       sort_order: 0,
       is_active: true,
+	  default_value: "",
+		is_readonly: false,
+		min_value: "",
+		max_value: "",
+		min_length: "",
+		max_length: "",
+		validation_pattern: "",
     });
   }
 
@@ -165,6 +179,13 @@ export default function BeneficiaryFieldsClient() {
                         is_required: f.is_required,
                         sort_order: f.sort_order,
                         is_active: f.is_active,
+						default_value: f.default_value || "",
+						is_readonly: f.is_readonly || false,
+						min_value: f.min_value || "",
+						max_value: f.max_value || "",
+						min_length: f.min_length || "",
+						max_length: f.max_length || "",
+						validation_pattern: f.validation_pattern || "",
                       });
 
                       setOpen(true);
@@ -243,6 +264,9 @@ export default function BeneficiaryFieldsClient() {
             <option value="date">Date</option>
             <option value="boolean">Boolean</option>
             <option value="lookup">Lookup</option>
+			<option value="email">Email</option>
+			<option value="phone">Phone</option>
+			<option value="url">URL</option>
           </select>
 
           {form.field_type === "lookup" && (
@@ -316,7 +340,73 @@ export default function BeneficiaryFieldsClient() {
             />
             حقل إجباري
           </label>
+		  
+		  <Input
+			  placeholder="القيمة الافتراضية"
+			  value={form.default_value}
+			  onChange={(e) =>
+				setForm({ ...form, default_value: e.target.value })
+			  }
+			/>
 
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+			  <Input
+				type="number"
+				placeholder="أقل قيمة"
+				value={form.min_value}
+				onChange={(e) =>
+				  setForm({ ...form, min_value: e.target.value })
+				}
+			  />
+
+			  <Input
+				type="number"
+				placeholder="أعلى قيمة"
+				value={form.max_value}
+				onChange={(e) =>
+				  setForm({ ...form, max_value: e.target.value })
+				}
+			  />
+			</div>
+
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+			  <Input
+				type="number"
+				placeholder="أقل عدد أحرف"
+				value={form.min_length}
+				onChange={(e) =>
+				  setForm({ ...form, min_length: e.target.value })
+				}
+			  />
+
+			  <Input
+				type="number"
+				placeholder="أعلى عدد أحرف"
+				value={form.max_length}
+				onChange={(e) =>
+				  setForm({ ...form, max_length: e.target.value })
+				}
+			  />
+			</div>
+
+			<Input
+			  placeholder="نمط التحقق Regex اختياري"
+			  value={form.validation_pattern}
+			  onChange={(e) =>
+				setForm({ ...form, validation_pattern: e.target.value })
+			  }
+			/>
+
+			<label className="flex gap-2 items-center">
+			  <input
+				type="checkbox"
+				checked={form.is_readonly}
+				onChange={(e) =>
+				  setForm({ ...form, is_readonly: e.target.checked })
+				}
+			  />
+			  للقراءة فقط
+			</label>
           <Button onClick={save}>
             حفظ
           </Button>

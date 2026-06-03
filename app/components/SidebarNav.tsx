@@ -41,7 +41,7 @@ const navGroups = [
       { href: "/org/sites", label: { ar: "المواقع", en: "Sites" } },
       { href: "/org/centers", label: { ar: "المراكز", en: "Centers" } },
       { href: "/users", label: { ar: "المستخدمون", en: "Users" } },
-	  {href: "/lookups/governorates",label: {ar: "المحافظات",en: "Governorates",},},
+	  /*{href: "/lookups/governorates",label: {ar: "المحافظات",en: "Governorates",},},
 	  {href: "/lookups/marital_status",label: {ar: "الحالات الاجتماعية",en: "Marital Status",},},
 	  {href: "/lookups/death_reasons",label: {ar: "أسباب الوفاة",en: "Death Reasons",},},
 	  {href: "/lookups/relationship_types",label: {ar: "أنواع القرابة",en: "Relationship Types",},},
@@ -51,9 +51,21 @@ const navGroups = [
 	  {href: "/lookups/education_levels",label: { ar: "المستويات التعليمية", en: "Education Levels" },},
 	  {href: "/lookups/health_statuses",label: { ar: "الحالات الصحية", en: "Health Statuses" },},
 	  {href: "/lookups/beneficiary_statuses",label: { ar: "حالات المستفيد", en: "Beneficiary Statuses" },},
+	  */
     ],
   },
   
+	  {
+		title: { ar: "القوائم والديناميكية", en: "Dynamic Setup" },
+		  collapsible: true,
+		  items: [
+			{ href: "/lookups/types", label: { ar: "أنواع القوائم", en: "Lookup Types" } },
+			{ href: "/lookups/values", label: { ar: "قيم القوائم", en: "Lookup Values" } },
+			{ href: "/beneficiary-fields/tabs", label: { ar: "تبويبات المستفيد", en: "Beneficiary Tabs" } },
+			{ href: "/beneficiary-fields/groups", label: { ar: "مجموعات البيانات", en: "Field Groups" } },
+			{ href: "/beneficiary-fields/fields", label: { ar: "الحقول الديناميكية", en: "Dynamic Fields" } },
+		  ],
+		},
   {
 	title: { ar: " المظهر والواجهة ", en: "Appearance" },
     collapsible: true,

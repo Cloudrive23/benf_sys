@@ -46,7 +46,14 @@ export async function POST(request: Request) {
         help_text_en: clean.help_text_en || null,
         is_required: clean.is_required ?? false,
         sort_order: Number(clean.sort_order || 0),
-        is_active: clean.is_active ?? true,
+        is_active: clean.is_active ?? true,default_value: clean.default_value || null,
+		is_readonly: clean.is_readonly ?? false,
+		min_value: clean.min_value ? Number(clean.min_value) : null,
+		max_value: clean.max_value ? Number(clean.max_value) : null,
+		min_length: clean.min_length ? Number(clean.min_length) : null,
+		max_length: clean.max_length ? Number(clean.max_length) : null,
+		validation_pattern: clean.validation_pattern || null,
+		
       },
     });
 
@@ -80,6 +87,13 @@ export async function PUT(request: Request) {
         sort_order: Number(clean.sort_order || 0),
         is_active: clean.is_active ?? true,
         updated_at: new Date(),
+		default_value: clean.default_value || null,
+		is_readonly: clean.is_readonly ?? false,
+		min_value: clean.min_value ? Number(clean.min_value) : null,
+		max_value: clean.max_value ? Number(clean.max_value) : null,
+		min_length: clean.min_length ? Number(clean.min_length) : null,
+		max_length: clean.max_length ? Number(clean.max_length) : null,
+		validation_pattern: clean.validation_pattern || null,
       },
     });
 

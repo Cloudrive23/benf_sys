@@ -760,6 +760,13 @@ model beneficiary_custom_fields {
   group beneficiary_field_groups @relation(fields: [group_id], references: [id])
 
   values beneficiary_custom_values[]
+  default_value      String?
+	is_readonly        Boolean? @default(false)
+	min_value          Decimal?
+	max_value          Decimal?
+	min_length         Int?
+	max_length         Int?
+	validation_pattern String?
 }
 
 model beneficiary_custom_values {
