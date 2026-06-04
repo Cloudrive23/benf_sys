@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import BaseModal from "@/app/components/modals/BaseModal";
@@ -101,6 +101,28 @@ export default function BeneficiaryFamilyMembersTab({
     loadData();
   }
 
+	  async function remove(id: string) {
+		  if (!confirm("هل أنت متأكد من حذف هذا القريب؟")) {
+			return;
+		  }
+
+		  const res = await fetch(
+			`/api/family-members?id=${id}`,
+			{
+			  method: "DELETE",
+			}
+		  );
+
+		  const data = await res.json();
+
+		  if (!data.success) {
+			toast.error(data.message || "فشل الحذف");
+			return;
+		  }
+
+		  toast.success("تم الحذف بنجاح");
+		  loadData();
+		}
   return (
     <div className="space-y-4">
       {!beneficiaryId && (
@@ -154,23 +176,36 @@ export default function BeneficiaryFamilyMembersTab({
 				  </td>
                   <td className="p-3">{item.phone}</td>
                   <td className="p-3">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setForm({
-                          ...item,
-                          birth_date: item.birth_date
-                            ? String(item.birth_date).slice(0, 10)
-                            : "",
-                        });
-                        setOpen(true);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </td>
+					  <div className="flex gap-2">
+
+						<Button
+						  type="button"
+						  size="sm"
+						  variant="outline"
+						  onClick={() => {
+							setForm({
+							  ...item,
+							  birth_date: item.birth_date
+								? String(item.birth_date).slice(0, 10)
+								: "",
+							});
+							setOpen(true);
+						  }}
+						>
+						  <Pencil className="h-4 w-4" />
+						</Button>
+
+						<Button
+						  type="button"
+						  size="sm"
+						  variant="destructive"
+						  onClick={() => remove(item.id)}
+						>
+						  <Trash2 className="h-4 w-4" />
+						</Button>
+
+					  </div>
+					</td>
                 </tr>
               ))}
 

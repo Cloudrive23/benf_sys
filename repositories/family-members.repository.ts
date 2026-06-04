@@ -21,4 +21,20 @@ export const familyMembersRepository = {
       data,
     });
   },
+  
+  softDelete(id: string) {
+	  return prisma.beneficiary_family_members.update({
+		where: { id },
+		data: {
+		  is_active: false,
+		  updated_at: new Date(),
+		},
+	  });
+	},
+	
+	findById(id: string) {
+		  return prisma.beneficiary_family_members.findUnique({
+			where: { id },
+		  });
+		},
 };
