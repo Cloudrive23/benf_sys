@@ -854,3 +854,47 @@ model beneficiary_family_members {
 
   @@index([beneficiary_id])
 }
+
+model audit_entities {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  entity_key         String   @unique @db.VarChar(100)
+  entity_name        String   @db.VarChar(100)
+  entity_type        String   @db.VarChar(100)
+
+  label_ar           String   @db.VarChar(255)
+  display_name_field String?  @db.VarChar(100)
+
+  is_active          Boolean? @default(true)
+
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+  updated_at         DateTime? @default(now()) @db.Timestamp(6)
+
+  fields             audit_entity_fields[]
+
+  @@index([entity_key])
+}
+
+model audit_entity_fields {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  entity_id      String   @db.Uuid
+
+  field_name     String   @db.VarChar(100)
+  field_label_ar String   @db.VarChar(255)
+
+  is_tracked     Boolean? @default(true)
+  is_lookup      Boolean? @default(false)
+  lookup_type    String?  @db.VarChar(100)
+
+  sort_order     Int?     @default(0)
+  is_active      Boolean? @default(true)
+
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  updated_at     DateTime? @default(now()) @db.Timestamp(6)
+
+  entity         audit_entities @relation(fields: [entity_id], references: [id], onDelete: Cascade)
+
+  @@unique([entity_id, field_name])
+  @@index([entity_id])
+}

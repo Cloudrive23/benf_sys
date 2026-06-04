@@ -43,3 +43,17 @@ export async function PUT(request: Request) {
     return handleApiError(error);
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id") || "";
+    const user = await getCurrentUser();
+
+    await familyMembersService.delete(id, user);
+
+    return successResponse(null, "تم حذف فرد الأسرة بنجاح");
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
