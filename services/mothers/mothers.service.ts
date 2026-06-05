@@ -1,6 +1,12 @@
 import { prisma } from "@/app/lib/prisma";
 import { AppError } from "@/lib/api-error";
-import { auditService } from "@/services/audit.service";
+import { duplicateCheckService } from "@/services/duplicate-check.service";
+
+import {
+  logCreate,
+  logDelete,
+  logUpdate,
+} from "@/lib/audit/audit-logger";
 import { mothersRepository } from "@/repositories/mothers/mothers.repository";
 import {
   createMotherSchema,
@@ -8,6 +14,12 @@ import {
   type CreateMotherInput,
   type UpdateMotherInput,
 } from "@/validators/mothers/mother.schema";
+
+type Actor = {
+  id?: string;
+  username?: string;
+  role?: string;
+} | null;
 
 function nextNumber(values: (string | null)[]) {
   const max = values
@@ -70,8 +82,82 @@ function validateDates(data: any) {
   }
 
   if (data.is_alive && data.death_date) {
-    throw new AppError("لا يمكن إدخال تاريخ وفاة والأم محددة أنها على قيد الحياة", 400);
+    throw new AppError(
+      "لا يمكن إدخال تاريخ وفاة والأم محددة أنها على قيد الحياة",
+      400
+    );
   }
+}
+
+/**
+ * دالة اختيارية لمنع تكرار اسم الأم العربي.
+ *
+ * ملاحظة:
+ * هذه الدالة غير مفعلة حاليًا لأن الاسم قد يتكرر طبيعيًا
+ * بين محافظات أو مديريات أو أسر مختلفة.
+ *
+ * لتفعيلها مستقبلًا:
+ * احذف علامة التعليق // من أسطر الاستدعاء داخل createMother و updateMother.
+ */
+async function ensureUniqueMotherName(fullNameAr: string, excludeId?: string) {
+  const name = String(fullNameAr || "").trim();
+
+  if (!name) return;
+
+  const duplicate = await prisma.mothers.findFirst({
+    where: {
+      full_name_ar: name,
+      is_deleted: false,
+      ...(excludeId
+        ? {
+            id: {
+              not: excludeId,
+            },
+          }
+        : {}),
+    },
+  });
+
+  if (duplicate) {
+    throw new AppError("يوجد سجل أم بنفس الاسم العربي", 409);
+  }
+}
+
+async function validateDuplicatePolicy(
+  data: any,
+  excludeId?: string,
+  allowDuplicateWarning = false
+) {
+  const result = await duplicateCheckService.check({
+    entityKey: "mother",
+    data,
+    excludeId,
+  });
+
+  if (result.actionMode === "block") {
+    const firstMatch = result.matches[0];
+
+    throw new AppError(
+      firstMatch?.message || "يوجد سجل مشابه ولا يمكن الحفظ حسب سياسة التكرار",
+      409,
+      result
+    );
+  }
+
+  if (result.actionMode === "warn" && !allowDuplicateWarning) {
+    const firstMatch = result.matches[0];
+
+    throw new AppError(
+      firstMatch?.message || "يوجد سجل مشابه، يرجى التأكد قبل الحفظ",
+      409,
+      {
+        ...result,
+        requiresConfirmation: true,
+      }
+    );
+  }
+
+  return result;
 }
 
 export const mothersService = {
@@ -85,14 +171,25 @@ export const mothersService = {
     };
   },
 
-  async createMother(input: CreateMotherInput) {
+  async createMother(input: CreateMotherInput,actor?: Actor,allowDuplicateWarning = false) {
     const parsed = createMotherSchema.safeParse(input);
 
     if (!parsed.success) {
-      throw new AppError("خطأ في التحقق من البيانات", 400, parsed.error.flatten());
+      throw new AppError(
+        "خطأ في التحقق من البيانات",
+        400,
+        parsed.error.flatten()
+      );
     }
 
     validateDates(parsed.data);
+	await validateDuplicatePolicy(parsed.data, undefined, allowDuplicateWarning);
+	
+    /**
+     * منع تكرار اسم الأم العربي - موقوف حاليًا.
+     * للتفعيل مستقبلًا احذف // فقط.
+     */
+    // await ensureUniqueMotherName(parsed.data.full_name_ar);
 
     if (parsed.data.identity_number) {
       const duplicateIdentity = await mothersRepository.findByIdentity(
@@ -104,6 +201,12 @@ export const mothersService = {
       }
     }
 
+    /**
+     * التحقق من التشابه بالاسم وتاريخ الميلاد - موقوف حاليًا.
+     * السبب: قد يحدث تشابه طبيعي في الأسماء أو حتى بعض البيانات.
+     * للتفعيل مستقبلًا احذف التعليق عن هذا الجزء.
+     */
+    /*
     const duplicateSimilar = await mothersRepository.findSimilar({
       full_name_ar: parsed.data.full_name_ar,
       birth_date: parsed.data.birth_date || null,
@@ -112,6 +215,7 @@ export const mothersService = {
     if (duplicateSimilar) {
       throw new AppError("يوجد أم بنفس الاسم وتاريخ الميلاد", 409);
     }
+    */
 
     const mother_code = await getNextMotherCode();
 
@@ -120,25 +224,35 @@ export const mothersService = {
       ...mapMotherData(parsed.data),
     });
 
-    await auditService.log({
-      action: "CREATE",
-      entityName: "mothers",
+    await logCreate({
+      entityKey: "mother",
       entityId: mother.id,
-      newData: mother,
-      notes: "تم إنشاء سجل أم",
+      data: mother,
+      actor,
     });
 
     return mother;
   },
 
-  async updateMother(input: UpdateMotherInput) {
+  async updateMother(input: UpdateMotherInput,actor?: Actor,allowDuplicateWarning = false) {
     const parsed = updateMotherSchema.safeParse(input);
 
     if (!parsed.success) {
-      throw new AppError("خطأ في التحقق من البيانات", 400, parsed.error.flatten());
+      throw new AppError(
+        "خطأ في التحقق من البيانات",
+        400,
+        parsed.error.flatten()
+      );
     }
 
     validateDates(parsed.data);
+	await validateDuplicatePolicy(parsed.data,parsed.data.id,allowDuplicateWarning);
+	
+    /**
+     * منع تكرار اسم الأم العربي - موقوف حاليًا.
+     * للتفعيل مستقبلًا احذف // فقط.
+     */
+    // await ensureUniqueMotherName(parsed.data.full_name_ar, parsed.data.id);
 
     const oldMother = await prisma.mothers.findUnique({
       where: { id: parsed.data.id },
@@ -159,6 +273,11 @@ export const mothersService = {
       }
     }
 
+    /**
+     * التحقق من التشابه بالاسم وتاريخ الميلاد - موقوف حاليًا.
+     * للتفعيل مستقبلًا احذف التعليق عن هذا الجزء.
+     */
+    /*
     const duplicateSimilar = await mothersRepository.findSimilar({
       full_name_ar: parsed.data.full_name_ar,
       birth_date: parsed.data.birth_date || null,
@@ -168,25 +287,25 @@ export const mothersService = {
     if (duplicateSimilar) {
       throw new AppError("يوجد أم بنفس الاسم وتاريخ الميلاد", 409);
     }
+    */
 
     const mother = await mothersRepository.update(parsed.data.id, {
       ...mapMotherData(parsed.data),
       updated_at: new Date(),
     });
 
-    await auditService.log({
-      action: "UPDATE",
-      entityName: "mothers",
+    await logUpdate({
+      entityKey: "mother",
       entityId: mother.id,
       oldData: oldMother,
       newData: mother,
-      notes: "تم تعديل سجل أم",
+      actor,
     });
 
     return mother;
   },
 
-  async deleteMother(id: string) {
+  async deleteMother(id: string, actor?: Actor) {
     if (!id) {
       throw new AppError("معرف الأم مطلوب", 400);
     }
@@ -205,12 +324,12 @@ export const mothersService = {
       updated_at: new Date(),
     });
 
-    await auditService.log({
-      action: "DELETE",
-      entityName: "mothers",
-      entityId: id,
+    await logDelete({
+      entityKey: "mother",
+      entityId: mother.id,
       oldData: oldMother,
-      notes: "تم حذف سجل أم حذفًا منطقيًا",
+      newData: mother,
+      actor,
     });
 
     return mother;

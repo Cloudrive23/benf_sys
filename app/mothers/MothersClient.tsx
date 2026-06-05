@@ -178,35 +178,77 @@ export default function MothersClient() {
     setOpen(true);
   }
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
+		async function save(e: React.FormEvent, allowDuplicateWarning = false) {
+		  e.preventDefault();
 
-    if (!form.branch_id) {
-      toast.error("يجب اختيار الفرع");
-      return;
-    }
+		  if (!form.branch_id) {
+			toast.error("يجب اختيار الفرع");
+			return;
+		  }
 
-    setSaving(true);
+		  setSaving(true);
 
-    const res = await fetch("/api/mothers", {
-      method: form.id ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+		  const res = await fetch("/api/mothers", {
+			method: form.id ? "PUT" : "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+			  ...form,
+			  allowDuplicateWarning,
+			}),
+		  });
 
-    const data = await res.json();
+		  const data = await res.json();
 
-    if (data.success) {
-      toast.success(data.message || "تم الحفظ بنجاح");
-      setOpen(false);
-      setForm(emptyForm);
-      await load();
-    } else {
-      toast.error(data.message || "تعذر حفظ البيانات");
-    }
+		  if (data.success) {
+			toast.success(data.message || "تم الحفظ بنجاح");
+			setOpen(false);
+			setForm(emptyForm);
+			await load();
+			setSaving(false);
+			return;
+		  }
 
-    setSaving(false);
-  }
+		  const errorDetails =
+			data.details ||
+			data.error ||
+			data.data ||
+			data.errors ||
+			null;
+
+		  const requiresConfirmation =
+			errorDetails?.requiresConfirmation ||
+			errorDetails?.actionMode === "warn" ||
+			errorDetails?.canSave === true;
+
+		  if (requiresConfirmation && !allowDuplicateWarning) {
+			const matches = errorDetails?.matches || [];
+
+			const matchText =
+			  matches.length > 0
+				? matches
+					.map((item: any, index: number) => {
+					  const name = item?.record?.displayName || "سجل مشابه";
+					  const rule = item?.ruleNameAr || "قاعدة تشابه";
+					  return `${index + 1}. ${name} - ${rule}`;
+					})
+					.join("\n")
+				: "";
+
+			const confirmed = confirm(
+			  `${data.message || "يوجد سجل مشابه، يرجى التأكد قبل الحفظ."}\n\n${matchText}\n\nهل تريد المتابعة والحفظ؟`
+			);
+
+			if (confirmed) {
+			  setSaving(false);
+			  await save(e, true);
+			  return;
+			}
+		  } else {
+			toast.error(data.message || "تعذر حفظ البيانات");
+		  }
+
+		  setSaving(false);
+		}
 
   async function remove(id: string) {
     if (!confirm("هل أنت متأكد من حذف سجل الأم؟")) return;

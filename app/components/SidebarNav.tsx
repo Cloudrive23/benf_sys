@@ -41,6 +41,7 @@ const navGroups = [
       { href: "/org/sites", label: { ar: "المواقع", en: "Sites" } },
       { href: "/org/centers", label: { ar: "المراكز", en: "Centers" } },
       { href: "/users", label: { ar: "المستخدمون", en: "Users" } },
+	  {href: "/audit-settings",label: {ar: "إعدادات سجل التغييرات",en: "Audit Settings",},},
 	  /*{href: "/lookups/governorates",label: {ar: "المحافظات",en: "Governorates",},},
 	  {href: "/lookups/marital_status",label: {ar: "الحالات الاجتماعية",en: "Marital Status",},},
 	  {href: "/lookups/death_reasons",label: {ar: "أسباب الوفاة",en: "Death Reasons",},},
