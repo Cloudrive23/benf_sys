@@ -19,6 +19,9 @@ export default function BeneficiaryFamilyTab({
   fathers: EntityPickerItem[];
   mothers: EntityPickerItem[];
   guardians: EntityPickerItem[];
+  onCreateFather?: () => void;
+  onCreateMother?: () => void;
+  onCreateGuardian?: () => void;
 }) {
   return (
     <div className="space-y-5">
@@ -32,7 +35,7 @@ export default function BeneficiaryFamilyTab({
             father_id: item.id,
           })
         }
-        onCreate={onCreateFather}
+        onCreate={onCreateFather || (() => {})}
         createLabel="إضافة أب"
       />
 
@@ -46,7 +49,7 @@ export default function BeneficiaryFamilyTab({
             mother_id: item.id,
           })
         }
-        onCreate={onCreateMother}
+        onCreate={onCreateMother || (() => {})}
         createLabel="إضافة أم"
       />
 
@@ -60,7 +63,7 @@ export default function BeneficiaryFamilyTab({
             guardian_id: item.id,
           })
         }
-        onCreate={onCreateGuardian}
+        onCreate={onCreateGuardian || (() => {})}
         createLabel="إضافة معيل"
       />
     </div>

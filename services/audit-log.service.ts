@@ -26,8 +26,8 @@ export const auditLogService = {
       old_data: oldValues || null,
       new_data: newValues || null,
 
-	  username: user?.username,
-	  userId: user?.id,
+	  username: null,
+                  userId: null,
     });
   },
 };

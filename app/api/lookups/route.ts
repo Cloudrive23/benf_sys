@@ -1,5 +1,7 @@
+import { prisma } from "@/app/lib/prisma";
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
+
 
 import { lookupsService } from "@/services/lookups/lookups.service";
 

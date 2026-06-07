@@ -173,6 +173,7 @@ export default function BeneficiaryFieldsClient() {
                         field_label_en: f.field_label_en || "",
                         field_type: f.field_type,
                         lookup_type: f.lookup_type || "",
+						lookup_type_id: f.lookup_type_id || "",
                         placeholder_ar: f.placeholder_ar || "",
                         placeholder_en: f.placeholder_en || "",
                         help_text_ar: f.help_text_ar || "",
