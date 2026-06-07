@@ -44,6 +44,78 @@ async function getNextBeneficiaryNumbers() {
   };
 }
 
+async function getDefaultBeneficiaryStatusId() {
+  const draftStatus = await prisma.lookups.findFirst({
+    where: {
+      lookup_type: "beneficiary_statuses",
+      code: "draft",
+      is_active: true,
+    },
+    select: { id: true },
+    orderBy: { sort_order: "asc" },
+  });
+
+  if (draftStatus?.id) return draftStatus.id;
+
+  const firstStatus = await prisma.lookups.findFirst({
+    where: {
+      lookup_type: "beneficiary_statuses",
+      is_active: true,
+    },
+    select: { id: true },
+    orderBy: { sort_order: "asc" },
+  });
+
+  return firstStatus?.id || null;
+}
+
+async function normalizeBeneficiaryStatus(data: any) {
+  let statusId = data.status_id || null;
+  let currentStatus = data.current_status || "";
+
+  if (!statusId) {
+    statusId = await getDefaultBeneficiaryStatusId();
+  }
+
+  if (statusId) {
+    const status = await prisma.lookups.findFirst({
+      where: {
+        id: statusId,
+        lookup_type: "beneficiary_statuses",
+      },
+      select: {
+        code: true,
+        name_en: true,
+        name_ar: true,
+      },
+    });
+
+    currentStatus =
+      status?.code ||
+      status?.name_en ||
+      currentStatus ||
+      "draft";
+  }
+
+  return {
+    ...data,
+    status_id: statusId,
+    current_status: currentStatus || "draft",
+  };
+}
+
+function normalizeCurrentStatus(value: any) {
+  const allowed = ["draft", "active", "stopped", "closed"];
+  const text = String(value || "").trim();
+
+  if (allowed.includes(text)) {
+    return text;
+  }
+
+  return "draft";
+}
+
+
 function baseBeneficiaryData(data: any, options?: { allowCodeUpdate?: boolean }) {
   const base: any = {
     file_number: data.file_number,
@@ -68,13 +140,14 @@ function baseBeneficiaryData(data: any, options?: { allowCodeUpdate?: boolean })
     birth_date: data.birth_date ? new Date(data.birth_date) : null,
 
     identity_number: data.identity_number || null,
-    phone: data.phone || null,
+	identity_type: data.identity_type || null,
+	phone: data.phone || null,
 	alternative_phone: data.alternative_phone || null,
 	address: data.address || null,
 	social_notes: data.social_notes || null,
 	status_id: data.status_id || null,
+    current_status: normalizeCurrentStatus(data.current_status),
 	
-    current_status: data.current_status || "draft",
     is_active: data.is_active ?? true,
   };
 
@@ -177,7 +250,7 @@ export const beneficiariesService = {
 
     const numbers = await getNextBeneficiaryNumbers();
 
-    const data = {
+    const data = await normalizeBeneficiaryStatus({
       ...parsed.data,
       beneficiary_code: parsed.data.beneficiary_code || numbers.beneficiary_code,
       file_number: parsed.data.file_number || numbers.file_number,
@@ -185,7 +258,7 @@ export const beneficiariesService = {
         parsed.data.external_reference ||
         parsed.data.beneficiary_code ||
         numbers.beneficiary_code,
-    };
+    });
 
     await checkDuplicate(data, actor);
 
@@ -220,12 +293,12 @@ export const beneficiariesService = {
       throw new AppError("المستفيد غير موجود", 404);
     }
 
-    const data = {
+    const data = await normalizeBeneficiaryStatus({
       ...parsed.data,
       beneficiary_code: existing.beneficiary_code,
       external_reference:
         parsed.data.external_reference || existing.beneficiary_code,
-    };
+    });
 
     await checkDuplicate(data, actor, parsed.data.id);
 

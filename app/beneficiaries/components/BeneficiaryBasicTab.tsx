@@ -13,7 +13,8 @@ type OrgUnit = {
 
 type LookupItem = {
   id: string;
-  name_ar: string;
+  name_ar?: string | null;
+  name_en?: string | null;
   code?: string | null;
 };
 
@@ -37,6 +38,10 @@ function getGenderValue(item: LookupItem) {
   if (name === "انثى" || name === "أنثى") return "female";
 
   return code || name;
+}
+
+function getIdentityTypeValue(item: LookupItem) {
+  return item.code || item.name_ar || item.name_en || item.id;
 }
 
 export default function BeneficiaryBasicTab({
@@ -224,7 +229,6 @@ export default function BeneficiaryBasicTab({
             onChange={(e) => updateField("gender", e.target.value)}
           >
             <option value="">اختر الجنس</option>
-
             {genders.map((item) => (
               <option key={item.id} value={getGenderValue(item)}>
                 {item.name_ar}
@@ -249,7 +253,7 @@ export default function BeneficiaryBasicTab({
           >
             <option value="">اختر نوع الهوية</option>
             {identityTypes.map((item) => (
-              <option key={item.id} value={item.code || item.name_ar || item.id}>
+              <option key={item.id} value={getIdentityTypeValue(item)}>
                 {item.name_ar}
               </option>
             ))}

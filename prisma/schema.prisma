@@ -104,7 +104,7 @@ model beneficiaries {
   periodic_report_attachments periodic_report_attachments[]
   periodic_reports            periodic_reports[]
   sponsorships                sponsorships[]
-
+  
   @@index([beneficiary_type], map: "idx_beneficiaries_beneficiary_type")
   @@index([branch_id], map: "idx_beneficiaries_branch_id")
   @@index([center_id], map: "idx_beneficiaries_center_id")

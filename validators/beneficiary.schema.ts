@@ -33,6 +33,7 @@ export const createBeneficiarySchema = z.object({
 
   gender: z.enum(["male", "female"]),
   birth_date: z.string().optional().or(z.literal("")),
+  identity_type: z.string().optional().or(z.literal("")),
   identity_number: z.string().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
 address: z.string().optional().or(z.literal("")),
