@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 
 export default function DynamicBeneficiaryFields({ values, setValues }: any) {
@@ -18,7 +19,14 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
     if (data.success) {
       const result = data.data || [];
       setTabs(result);
-      setActiveTab(result[0]?.id || "");
+
+      setActiveTab((current) => {
+        if (current && result.some((tab: any) => tab.id === current)) {
+          return current;
+        }
+
+        return result[0]?.id || "";
+      });
     }
   }
 
@@ -43,6 +51,30 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
     loadForm();
   }, []);
 
+  const currentTab = useMemo(() => {
+    return tabs.find((tab) => tab.id === activeTab);
+  }, [tabs, activeTab]);
+
+  const visibleGroups = useMemo(() => {
+    return (currentTab?.groups || []).filter(
+      (group: any) => Array.isArray(group.fields) && group.fields.length > 0
+    );
+  }, [currentTab]);
+
+  useEffect(() => {
+    const lookupTypes = new Set<string>();
+
+    visibleGroups.forEach((group: any) => {
+      group.fields?.forEach((field: any) => {
+        if (field.field_type === "lookup" && field.lookup_type) {
+          lookupTypes.add(field.lookup_type);
+        }
+      });
+    });
+
+    lookupTypes.forEach((type) => loadLookup(type));
+  }, [visibleGroups]);
+
   function updateValue(fieldId: string, value: any) {
     setValues({
       ...values,
@@ -57,10 +89,6 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
       const type = field.lookup_type;
       const items = lookups[type] || [];
 
-      if (type && !lookups[type]) {
-        loadLookup(type);
-      }
-
       return (
         <select
           className="w-full rounded-md border bg-transparent p-2"
@@ -71,7 +99,7 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
 
           {items.map((item: any) => (
             <option key={item.id} value={item.id}>
-              {item.name_ar}
+              {item.name_ar || item.name_en || item.code}
             </option>
           ))}
         </select>
@@ -115,7 +143,7 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
     if (field.field_type === "textarea") {
       return (
         <textarea
-          className="w-full rounded-md border bg-transparent p-2"
+          className="min-h-[90px] w-full rounded-md border bg-transparent p-2"
           placeholder={field.placeholder_ar || field.field_label_ar}
           value={value}
           onChange={(e) => updateValue(field.id, e.target.value)}
@@ -132,17 +160,23 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
     );
   }
 
-  const currentTab = tabs.find((t) => t.id === activeTab);
+  if (tabs.length === 0) {
+    return (
+      <div className="rounded-xl border p-6 text-center text-sm opacity-70">
+        لا توجد تبويبات بيانات إضافية مفعلة للمستفيد حاليًا.
+      </div>
+    );
+  }
 
   return (
-	<div className="space-y-5 max-w-full overflow-x-hidden">
-      <div className="flex gap-2 border-b pb-3 overflow-x-auto max-w-full">
+    <div className="space-y-5 overflow-x-hidden">
+      <div className="flex gap-2 overflow-x-auto border-b pb-3">
         {tabs.map((tab) => (
           <button
             type="button"
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-lg ${
+            className={`shrink-0 rounded-lg px-4 py-2 ${
               activeTab === tab.id ? "bg-green-600 text-white" : ""
             }`}
           >
@@ -152,44 +186,41 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
       </div>
 
       {!currentTab && (
-        <div className="text-sm opacity-70">
-          لا توجد تبويبات ديناميكية مفعلة.
+        <div className="rounded-xl border p-6 text-center text-sm opacity-70">
+          لا يوجد تبويب محدد.
         </div>
       )}
 
-      {currentTab?.groups?.map((group: any) => (
-        <div
-		  key={group.id}
-		  className="rounded-xl border p-3 sm:p-4 space-y-4 max-w-full overflow-hidden"
-		>
-          <h3 className="font-bold text-lg">{group.group_name_ar}</h3>
+      {currentTab && visibleGroups.length === 0 && (
+        <div className="rounded-xl border p-6 text-center text-sm opacity-70">
+          لا توجد حقول مفعلة داخل تبويب {currentTab.tab_name_ar} حاليًا.
+        </div>
+      )}
 
-          {group.fields.length === 0 ? (
-            <div className="text-sm opacity-60">
-              لا توجد حقول داخل هذه المجموعة.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-full">
-              {group.fields.map((field: any) => (
-                <div key={field.id} className="min-w-0">
-                  <label className="text-sm block mb-2">
-                    {field.field_label_ar}
-                    {field.is_required && (
-                      <span className="text-red-500 mr-1">*</span>
-                    )}
-                  </label>
+      {visibleGroups.map((group: any) => (
+        <div key={group.id} className="rounded-xl border p-4">
+          <h3 className="mb-4 border-b pb-3 text-lg font-bold">
+            {group.group_name_ar}
+          </h3>
 
-                  {renderField(field)}
-
-                  {field.help_text_ar && (
-                    <p className="text-xs opacity-60 mt-1">
-                      {field.help_text_ar}
-                    </p>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {group.fields.map((field: any) => (
+              <div key={field.id} className="min-w-0">
+                <label className="mb-2 block text-sm">
+                  {field.field_label_ar}
+                  {field.is_required && (
+                    <span className="mr-1 text-red-500">*</span>
                   )}
-                </div>
-              ))}
-            </div>
-          )}
+                </label>
+
+                {renderField(field)}
+
+                {field.help_text_ar && (
+                  <p className="mt-1 text-xs opacity-60">{field.help_text_ar}</p>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>

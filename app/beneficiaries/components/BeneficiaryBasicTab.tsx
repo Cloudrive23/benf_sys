@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 
 type OrgUnit = {
@@ -28,16 +29,17 @@ type Props = {
   identityTypes: LookupItem[];
 };
 
+const selectClass = "w-full rounded-md border bg-transparent p-2";
+
 function getGenderValue(item: LookupItem) {
   const code = String(item.code || "").trim().toLowerCase();
   const name = String(item.name_ar || "").trim();
 
   if (code === "male" || code === "female") return code;
-
   if (name === "ذكر") return "male";
   if (name === "انثى" || name === "أنثى") return "female";
 
-  return code || name;
+  return code || item.name_ar || item.name_en || item.id;
 }
 
 function getIdentityTypeValue(item: LookupItem) {
@@ -123,7 +125,7 @@ export default function BeneficiaryBasicTab({
         <Field label="الفرع / المحافظة" required>
           <select
             required
-            className="w-full rounded-md border bg-transparent p-2"
+            className={selectClass}
             value={form.branch_id || ""}
             onChange={(e) => updateBranch(e.target.value)}
           >
@@ -139,7 +141,7 @@ export default function BeneficiaryBasicTab({
         <Field label="الموقع" required>
           <select
             required
-            className="w-full rounded-md border bg-transparent p-2"
+            className={selectClass}
             value={form.site_id || ""}
             onChange={(e) => updateSite(e.target.value)}
           >
@@ -155,7 +157,7 @@ export default function BeneficiaryBasicTab({
         <Field label="المركز" required>
           <select
             required
-            className="w-full rounded-md border bg-transparent p-2"
+            className={selectClass}
             value={form.center_id || ""}
             onChange={(e) => updateField("center_id", e.target.value)}
           >
@@ -171,7 +173,10 @@ export default function BeneficiaryBasicTab({
 
       <Section title="أرقام وتعريفات المستفيد">
         <Field label="رقم المستفيد">
-          <Input readOnly value={form.beneficiary_code || ""} />
+          <Input
+            value={form.beneficiary_code || ""}
+            onChange={(e) => updateField("beneficiary_code", e.target.value)}
+          />
         </Field>
 
         <Field label="رقم الملف">
@@ -224,14 +229,14 @@ export default function BeneficiaryBasicTab({
         <Field label="الجنس" required>
           <select
             required
-            className="w-full rounded-md border bg-transparent p-2"
+            className={selectClass}
             value={form.gender || ""}
             onChange={(e) => updateField("gender", e.target.value)}
           >
             <option value="">اختر الجنس</option>
             {genders.map((item) => (
               <option key={item.id} value={getGenderValue(item)}>
-                {item.name_ar}
+                {item.name_ar || item.name_en || item.code}
               </option>
             ))}
           </select>
@@ -247,14 +252,14 @@ export default function BeneficiaryBasicTab({
 
         <Field label="نوع الهوية">
           <select
-            className="w-full rounded-md border bg-transparent p-2"
+            className={selectClass}
             value={form.identity_type || ""}
             onChange={(e) => updateField("identity_type", e.target.value)}
           >
             <option value="">اختر نوع الهوية</option>
             {identityTypes.map((item) => (
               <option key={item.id} value={getIdentityTypeValue(item)}>
-                {item.name_ar}
+                {item.name_ar || item.name_en || item.code}
               </option>
             ))}
           </select>
@@ -286,7 +291,7 @@ export default function BeneficiaryBasicTab({
         <div className="sm:col-span-2 xl:col-span-3">
           <Field label="العنوان">
             <textarea
-              className="w-full rounded-md border bg-transparent p-2 min-h-[80px]"
+              className="min-h-[90px] w-full rounded-md border bg-transparent p-2"
               value={form.address || ""}
               onChange={(e) => updateField("address", e.target.value)}
             />
@@ -302,12 +307,12 @@ function Section({
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <section className="space-y-3">
-      <h3 className="font-bold text-base">{title}</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+    <section className="rounded-xl border p-4">
+      <h3 className="mb-4 border-b pb-3 text-base font-bold">{title}</h3>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {children}
       </div>
     </section>
@@ -320,14 +325,14 @@ function Field({
   required = false,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
   required?: boolean;
 }) {
   return (
-    <div>
-      <label className="text-sm block mb-2">
+    <div className="min-w-0">
+      <label className="mb-2 block text-sm">
         {label}
-        {required && <span className="text-red-500 mr-1">*</span>}
+        {required && <span className="mr-1 text-red-500">*</span>}
       </label>
       {children}
     </div>
