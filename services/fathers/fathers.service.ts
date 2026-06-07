@@ -1,6 +1,6 @@
 import { prisma } from "@/app/lib/prisma";
 import { AppError } from "@/lib/api-error";
-import { auditService } from "@/services/audit.service";
+import { entityLifecycleService } from "@/services/entity-lifecycle.service";
 import { fathersRepository } from "@/repositories/fathers/fathers.repository";
 import {
   createFatherSchema,
@@ -8,6 +8,12 @@ import {
   type CreateFatherInput,
   type UpdateFatherInput,
 } from "@/validators/fathers/father.schema";
+
+type Actor = {
+  id?: string;
+  username?: string;
+  role?: string;
+} | null;
 
 function nextNumber(values: (string | null)[]) {
   const max = values
@@ -44,14 +50,63 @@ function mapFatherData(data: any) {
 
     phone: data.phone || null,
     address: data.address || null,
+
     occupation: data.occupation || null,
-	occupation_id: data.occupation_id || null,
+    occupation_id: data.occupation_id || null,
 
     notes: data.notes || null,
 
     is_active: data.is_active ?? true,
     is_deleted: false,
   };
+}
+
+/**
+ * تحقق قديم من رقم الهوية.
+ *
+ * أوقفناه هنا حتى تكون سياسات التكرار كلها من لوحة التحكم.
+ * لتفعيل منع رقم الهوية، الأفضل إضافة سياسة من صفحة:
+ * /duplicate-rules
+ *
+ * مثال:
+ * الكيان: الأب
+ * الحقل: identity_number
+ * نوع المطابقة: رقم هوية
+ * الإجراء: منع الحفظ
+ * النطاق: النظام كامل
+ */
+async function ensureUniqueFatherIdentity(
+  identityNumber?: string | null,
+  excludeId?: string
+) {
+  if (!identityNumber) return;
+
+  const duplicateIdentity = await fathersRepository.findByIdentity(
+    identityNumber,
+    excludeId
+  );
+
+  if (duplicateIdentity) {
+    throw new AppError("رقم هوية الأب موجود مسبقًا", 409);
+  }
+}
+
+/**
+ * تحقق قديم من التشابه.
+ *
+ * أوقفناه حتى يتم التحكم بالتشابه من لوحة سياسات التكرار.
+ */
+async function ensureNoSimilarFather(data: any, excludeId?: string) {
+  const duplicateSimilar = await fathersRepository.findSimilar({
+    full_name_ar: data.full_name_ar,
+    death_date: data.death_date || null,
+    death_reason_id: data.death_reason_id || null,
+    excludeId,
+  });
+
+  if (duplicateSimilar) {
+    throw new AppError("يوجد أب بنفس الاسم وتاريخ الوفاة وسبب الوفاة", 409);
+  }
 }
 
 export const fathersService = {
@@ -65,32 +120,38 @@ export const fathersService = {
     };
   },
 
-  async createFather(input: CreateFatherInput) {
+  async createFather(
+    input: CreateFatherInput,
+    actor?: Actor,
+    allowDuplicateWarning = false
+  ) {
     const parsed = createFatherSchema.safeParse(input);
 
     if (!parsed.success) {
-      throw new AppError("خطأ في التحقق من البيانات", 400, parsed.error.flatten());
-    }
-
-    if (parsed.data.identity_number) {
-      const duplicateIdentity = await fathersRepository.findByIdentity(
-        parsed.data.identity_number
+      throw new AppError(
+        "خطأ في التحقق من البيانات",
+        400,
+        parsed.error.flatten()
       );
-
-      if (duplicateIdentity) {
-        throw new AppError("رقم هوية الأب موجود مسبقًا", 409);
-      }
     }
 
-    const duplicateSimilar = await fathersRepository.findSimilar({
-      full_name_ar: parsed.data.full_name_ar,
-      death_date: parsed.data.death_date || null,
-      death_reason_id: parsed.data.death_reason_id || null,
+    /**
+     * التحقق القديم من رقم الهوية - موقوف.
+     * الأفضل إدارته من لوحة سياسات التكرار.
+     */
+    // await ensureUniqueFatherIdentity(parsed.data.identity_number);
+
+    /**
+     * التحقق القديم من التشابه - موقوف.
+     * الأفضل إدارته من لوحة سياسات التكرار.
+     */
+    // await ensureNoSimilarFather(parsed.data);
+
+    await entityLifecycleService.beforeCreate({
+      entityKey: "father",
+      data: parsed.data,
+      allowDuplicateWarning,
     });
-
-    if (duplicateSimilar) {
-      throw new AppError("يوجد أب بنفس الاسم وتاريخ الوفاة وسبب الوفاة", 409);
-    }
 
     const father_code = await getNextFatherCode();
 
@@ -99,22 +160,29 @@ export const fathersService = {
       ...mapFatherData(parsed.data),
     });
 
-    await auditService.log({
-      action: "CREATE",
-      entityName: "fathers",
+    await entityLifecycleService.afterCreate({
+      entityKey: "father",
       entityId: father.id,
-      newData: father,
-      notes: "تم إنشاء سجل أب",
+      data: father,
+      actor,
     });
 
     return father;
   },
 
-  async updateFather(input: UpdateFatherInput) {
+  async updateFather(
+    input: UpdateFatherInput,
+    actor?: Actor,
+    allowDuplicateWarning = false
+  ) {
     const parsed = updateFatherSchema.safeParse(input);
 
     if (!parsed.success) {
-      throw new AppError("خطأ في التحقق من البيانات", 400, parsed.error.flatten());
+      throw new AppError(
+        "خطأ في التحقق من البيانات",
+        400,
+        parsed.error.flatten()
+      );
     }
 
     const oldFather = await prisma.fathers.findUnique({
@@ -127,46 +195,45 @@ export const fathersService = {
       throw new AppError("سجل الأب غير موجود", 404);
     }
 
-    if (parsed.data.identity_number) {
-      const duplicateIdentity = await fathersRepository.findByIdentity(
-        parsed.data.identity_number,
-        parsed.data.id
-      );
+    /**
+     * التحقق القديم من رقم الهوية - موقوف.
+     * الأفضل إدارته من لوحة سياسات التكرار.
+     */
+    // await ensureUniqueFatherIdentity(
+    //   parsed.data.identity_number,
+    //   parsed.data.id
+    // );
 
-      if (duplicateIdentity) {
-        throw new AppError("رقم هوية الأب موجود مسبقًا", 409);
-      }
-    }
+    /**
+     * التحقق القديم من التشابه - موقوف.
+     * الأفضل إدارته من لوحة سياسات التكرار.
+     */
+    // await ensureNoSimilarFather(parsed.data, parsed.data.id);
 
-    const duplicateSimilar = await fathersRepository.findSimilar({
-      full_name_ar: parsed.data.full_name_ar,
-      death_date: parsed.data.death_date || null,
-      death_reason_id: parsed.data.death_reason_id || null,
+    await entityLifecycleService.beforeUpdate({
+      entityKey: "father",
+      data: parsed.data,
       excludeId: parsed.data.id,
+      allowDuplicateWarning,
     });
-
-    if (duplicateSimilar) {
-      throw new AppError("يوجد أب بنفس الاسم وتاريخ الوفاة وسبب الوفاة", 409);
-    }
 
     const father = await fathersRepository.update(parsed.data.id, {
       ...mapFatherData(parsed.data),
       updated_at: new Date(),
     });
 
-    await auditService.log({
-      action: "UPDATE",
-      entityName: "fathers",
+    await entityLifecycleService.afterUpdate({
+      entityKey: "father",
       entityId: father.id,
       oldData: oldFather,
       newData: father,
-      notes: "تم تعديل سجل أب",
+      actor,
     });
 
     return father;
   },
 
-  async deleteFather(id: string) {
+  async deleteFather(id: string, actor?: Actor) {
     if (!id) {
       throw new AppError("معرف الأب مطلوب", 400);
     }
@@ -187,12 +254,12 @@ export const fathersService = {
       updated_at: new Date(),
     });
 
-    await auditService.log({
-      action: "DELETE",
-      entityName: "fathers",
-      entityId: id,
+    await entityLifecycleService.afterDelete({
+      entityKey: "father",
+      entityId: father.id,
       oldData: oldFather,
-      notes: "تم حذف سجل أب حذفًا منطقيًا",
+      newData: father,
+      actor,
     });
 
     return father;
