@@ -69,6 +69,7 @@ model beneficiaries {
   family_name                 String?                       @db.VarChar(100)
   full_name                   String?                       @db.VarChar(255)
   gender                      String?                       @db.VarChar(20)
+  gender_id String? @db.Uuid
   birth_date                  DateTime?                     @db.Date
   birth_place                 String?                       @db.VarChar(255)
   nationality                 String?                       @db.VarChar(100)
