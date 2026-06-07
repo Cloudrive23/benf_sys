@@ -34,6 +34,13 @@ const navGroups = [
 		],
   },
   {
+    title: { ar: "الكفالات والجهات", en: "Sponsorships" },
+    collapsible: true,
+    items: [
+      { href: "/sponsors", label: { ar: "الجهات الكافلة / المانحة", en: "Sponsors" } },
+    ],
+  },
+  {
     title: { ar: "التهيئة والإعدادات", en: "Setup & Settings" },
     collapsible: true,
     items: [

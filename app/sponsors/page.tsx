@@ -1,9 +1,9 @@
 import SidebarNav from "../components/SidebarNav";
-import FathersClient from "./FathersClient";
+import SponsorsClient from "./SponsorsClient";
 
 export const dynamic = "force-dynamic";
 
-export default function FathersPage() {
+export default function SponsorsPage() {
   return (
     <div
       className="min-h-screen flex"
@@ -30,7 +30,7 @@ export default function FathersPage() {
       </aside>
 
       <main className="flex-1 min-w-0 p-4 lg:p-6 overflow-x-hidden">
-        <FathersClient />
+        <SponsorsClient />
       </main>
     </div>
   );
