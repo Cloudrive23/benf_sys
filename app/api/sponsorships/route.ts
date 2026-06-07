@@ -27,6 +27,13 @@ export async function GET(request: Request) {
       return successResponse(data, "تم تحميل الجهات الفرعية", 200, data.length);
     }
 
+    if (action === "sponsor-link") {
+      const beneficiaryId = searchParams.get("beneficiaryId") || "";
+      const sponsorId = searchParams.get("sponsorId") || "";
+      const data = await sponsorshipsService.getSponsorLink(beneficiaryId, sponsorId);
+      return successResponse(data, data ? "تم تحميل ارتباط المستفيد بالجهة" : "لا يوجد ارتباط سابق");
+    }
+
     const data = await sponsorshipsService.list();
     return successResponse(data, "تم تحميل الكفالات بنجاح", 200, data.length);
   } catch (error) {

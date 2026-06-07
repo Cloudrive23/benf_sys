@@ -29,10 +29,29 @@ const sponsorshipInclude = {
       },
     },
   },
+  beneficiary_sponsor_links: {
+    select: {
+      id: true,
+      beneficiary_id: true,
+      sponsor_id: true,
+      sponsor_beneficiary_code: true,
+      sponsor_file_number: true,
+      sponsor_reference: true,
+      registration_date: true,
+      status: true,
+      notes: true,
+    },
+  },
 };
 
 function normalizeSearch(value: string) {
   return String(value || "").trim();
+}
+
+function stripUndefined(data: Record<string, any>) {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined),
+  );
 }
 
 export const sponsorshipsRepository = {
@@ -212,6 +231,15 @@ export const sponsorshipsRepository = {
     });
   },
 
+  findSponsorLink(beneficiaryId: string, sponsorId: string) {
+    return prisma.beneficiary_sponsor_links.findFirst({
+      where: {
+        beneficiary_id: beneficiaryId,
+        sponsor_id: sponsorId,
+      },
+    });
+  },
+
   findActiveLookupByCode(lookupType: string, code: string) {
     return prisma.lookups.findFirst({
       where: {
@@ -236,10 +264,31 @@ export const sponsorshipsRepository = {
     });
   },
 
-  create(data: any, historyData?: any) {
+  create(data: any, linkData: any, historyData?: any) {
     return prisma.$transaction(async (tx) => {
+      const link = await tx.beneficiary_sponsor_links.upsert({
+        where: {
+          beneficiary_id_sponsor_id: {
+            beneficiary_id: data.beneficiary_id,
+            sponsor_id: data.sponsor_id,
+          },
+        },
+        update: {
+          ...stripUndefined(linkData),
+          updated_at: new Date(),
+        },
+        create: {
+          beneficiary_id: data.beneficiary_id,
+          sponsor_id: data.sponsor_id,
+          ...stripUndefined(linkData),
+        },
+      });
+
       const sponsorship = await tx.sponsorships.create({
-        data,
+        data: {
+          ...data,
+          beneficiary_sponsor_link_id: link.id,
+        },
       });
 
       if (historyData) {
@@ -258,11 +307,32 @@ export const sponsorshipsRepository = {
     });
   },
 
-  update(id: string, data: any, historyData?: any) {
+  update(id: string, data: any, linkData: any, historyData?: any) {
     return prisma.$transaction(async (tx) => {
+      const link = await tx.beneficiary_sponsor_links.upsert({
+        where: {
+          beneficiary_id_sponsor_id: {
+            beneficiary_id: data.beneficiary_id,
+            sponsor_id: data.sponsor_id,
+          },
+        },
+        update: {
+          ...stripUndefined(linkData),
+          updated_at: new Date(),
+        },
+        create: {
+          beneficiary_id: data.beneficiary_id,
+          sponsor_id: data.sponsor_id,
+          ...stripUndefined(linkData),
+        },
+      });
+
       const sponsorship = await tx.sponsorships.update({
         where: { id },
-        data,
+        data: {
+          ...data,
+          beneficiary_sponsor_link_id: link.id,
+        },
       });
 
       if (historyData) {

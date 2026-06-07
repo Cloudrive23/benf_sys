@@ -13,6 +13,11 @@ function cleanText(value: any) {
   return text || null;
 }
 
+function cleanOptionalText(value: any) {
+  if (value === undefined) return undefined;
+  return cleanText(value);
+}
+
 function cleanRequiredText(value: any, message: string) {
   const text = cleanText(value);
   if (!text) throw new AppError(message, 400);
@@ -29,6 +34,11 @@ function cleanDate(value: any) {
   }
 
   return date;
+}
+
+function cleanOptionalDate(value: any) {
+  if (value === undefined || value === null || value === "") return null;
+  return cleanDate(value);
 }
 
 function cleanAmount(value: any) {
@@ -111,6 +121,17 @@ async function validateLookup(lookupType: string, code: string, message: string)
   return item;
 }
 
+function buildLinkData(data: any) {
+  return {
+    sponsor_beneficiary_code: cleanOptionalText(data.sponsor_beneficiary_code),
+    sponsor_file_number: cleanOptionalText(data.sponsor_file_number),
+    sponsor_reference: cleanOptionalText(data.sponsor_reference),
+    registration_date: cleanOptionalDate(data.sponsor_link_registration_date),
+    status: cleanOptionalText(data.sponsor_link_status) || "active",
+    notes: cleanOptionalText(data.sponsor_link_notes),
+  };
+}
+
 function buildBaseData(data: any, actor?: Actor) {
   const startDate = cleanDate(data.start_date);
   const endDate = cleanDate(data.end_date);
@@ -168,8 +189,19 @@ export const sponsorshipsService = {
     return sponsorshipsRepository.searchChildSponsors(cleanParentId, query, 100);
   },
 
+  async getSponsorLink(beneficiaryId: string, sponsorId: string) {
+    const cleanBeneficiaryId = cleanRequiredText(beneficiaryId, "المستفيد مطلوب");
+    const cleanSponsorId = cleanRequiredText(sponsorId, "الجهة الفرعية مطلوبة");
+
+    await validateBeneficiary(cleanBeneficiaryId);
+    await validateChildSponsor(cleanSponsorId);
+
+    return sponsorshipsRepository.findSponsorLink(cleanBeneficiaryId, cleanSponsorId);
+  },
+
   async create(data: any, actor?: Actor) {
     const base = buildBaseData(data, actor);
+    const linkData = buildLinkData(data);
     await validateBaseReferences(base);
 
     const sponsorship_code = cleanText(data.sponsorship_code) || (await getNextSponsorshipCode());
@@ -185,13 +217,14 @@ export const sponsorshipsService = {
         ...base,
         created_by: actor?.id || null,
       },
+      linkData,
       {
         from_status: null,
         to_status: base.status,
         action_type: "create",
         action_notes: "إنشاء كفالة",
         action_by: actor?.id || null,
-      }
+      },
     );
   },
 
@@ -204,6 +237,7 @@ export const sponsorshipsService = {
     }
 
     const base = buildBaseData(data, actor);
+    const linkData = buildLinkData(data);
     await validateBaseReferences(base);
 
     const oldStatus = (existing as any).status || null;
@@ -212,6 +246,7 @@ export const sponsorshipsService = {
     return sponsorshipsRepository.update(
       id,
       base,
+      linkData,
       statusChanged
         ? {
             from_status: oldStatus,
@@ -220,7 +255,7 @@ export const sponsorshipsService = {
             action_notes: cleanText(data.status_change_notes) || "تغيير حالة الكفالة",
             action_by: actor?.id || null,
           }
-        : undefined
+        : undefined,
     );
   },
 

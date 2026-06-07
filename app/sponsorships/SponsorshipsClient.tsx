@@ -40,6 +40,18 @@ type SponsorOption = {
   } | null;
 };
 
+type BeneficiarySponsorLink = {
+  id: string;
+  beneficiary_id: string;
+  sponsor_id: string;
+  sponsor_beneficiary_code?: string | null;
+  sponsor_file_number?: string | null;
+  sponsor_reference?: string | null;
+  registration_date?: string | null;
+  status?: string | null;
+  notes?: string | null;
+};
+
 type Sponsorship = {
   id: string;
   sponsorship_code: string;
@@ -54,6 +66,8 @@ type Sponsorship = {
   notes?: string | null;
   beneficiaries?: BeneficiaryOption | null;
   sponsors?: SponsorOption | null;
+  beneficiary_sponsor_link_id?: string | null;
+  beneficiary_sponsor_links?: BeneficiarySponsorLink | null;
 };
 
 const DEFAULT_CURRENCY = "YER";
@@ -69,6 +83,12 @@ const emptyForm = {
   start_date: "",
   end_date: "",
   status: "active",
+  beneficiary_sponsor_link_id: "",
+  sponsor_beneficiary_code: "",
+  sponsor_file_number: "",
+  sponsor_reference: "",
+  sponsor_link_registration_date: "",
+  sponsor_link_notes: "",
   notes: "",
 };
 
@@ -167,6 +187,9 @@ export default function SponsorshipsClient() {
     text: string;
   } | null>(null);
 
+  const [sponsorLink, setSponsorLink] = useState<BeneficiarySponsorLink | null>(null);
+  const [loadingSponsorLink, setLoadingSponsorLink] = useState(false);
+
   async function load() {
     setLoading(true);
     try {
@@ -257,6 +280,52 @@ export default function SponsorshipsClient() {
       setChildSponsors([]);
     } finally {
       setLoadingChildSponsors(false);
+    }
+  }
+
+
+  async function loadSponsorLink(beneficiaryId: string, sponsorId: string) {
+    if (!beneficiaryId || !sponsorId) {
+      setSponsorLink(null);
+      updateField("beneficiary_sponsor_link_id", "");
+      return;
+    }
+
+    setLoadingSponsorLink(true);
+    try {
+      const res = await fetch(
+        `/api/sponsorships?action=sponsor-link&beneficiaryId=${encodeURIComponent(beneficiaryId)}&sponsorId=${encodeURIComponent(sponsorId)}`,
+        { cache: "no-store" },
+      );
+      const data = await res.json();
+      const link = data.success ? data.data || null : null;
+      setSponsorLink(link);
+
+      if (link) {
+        setForm((old) => ({
+          ...old,
+          beneficiary_sponsor_link_id: link.id || "",
+          sponsor_beneficiary_code: link.sponsor_beneficiary_code || "",
+          sponsor_file_number: link.sponsor_file_number || "",
+          sponsor_reference: link.sponsor_reference || "",
+          sponsor_link_registration_date: asDateInput(link.registration_date),
+          sponsor_link_notes: link.notes || "",
+        }));
+      } else {
+        setForm((old) => ({
+          ...old,
+          beneficiary_sponsor_link_id: "",
+          sponsor_beneficiary_code: "",
+          sponsor_file_number: "",
+          sponsor_reference: "",
+          sponsor_link_registration_date: "",
+          sponsor_link_notes: "",
+        }));
+      }
+    } catch {
+      setSponsorLink(null);
+    } finally {
+      setLoadingSponsorLink(false);
     }
   }
 
@@ -372,6 +441,8 @@ export default function SponsorshipsClient() {
     setSelectedChildSponsor(null);
     setChildSponsors([]);
     setNotice(null);
+    setSponsorLink(null);
+    setLoadingSponsorLink(false);
   }
 
   function openCreate() {
@@ -414,6 +485,9 @@ export default function SponsorshipsClient() {
       setChildSponsorSearch(childSponsor.sponsor_name || "");
     }
 
+    const link = item.beneficiary_sponsor_links || null;
+    setSponsorLink(link);
+
     setForm({
       id: item.id,
       sponsorship_code: item.sponsorship_code || "",
@@ -428,6 +502,12 @@ export default function SponsorshipsClient() {
       start_date: asDateInput(item.start_date),
       end_date: asDateInput(item.end_date),
       status: item.status || "active",
+      beneficiary_sponsor_link_id: link?.id || "",
+      sponsor_beneficiary_code: link?.sponsor_beneficiary_code || "",
+      sponsor_file_number: link?.sponsor_file_number || "",
+      sponsor_reference: link?.sponsor_reference || "",
+      sponsor_link_registration_date: asDateInput(link?.registration_date),
+      sponsor_link_notes: link?.notes || "",
       notes: item.notes || "",
     });
     setOpen(true);
@@ -443,6 +523,7 @@ export default function SponsorshipsClient() {
     setBeneficiarySearch(getBeneficiaryLabel(item));
     setBeneficiaryOptions([item]);
     updateField("beneficiary_id", item.id);
+    if (form.sponsor_id) loadSponsorLink(item.id, form.sponsor_id);
   }
 
   function clearBeneficiary() {
@@ -450,6 +531,8 @@ export default function SponsorshipsClient() {
     setBeneficiarySearch("");
     setBeneficiaryOptions([]);
     updateField("beneficiary_id", "");
+    setSponsorLink(null);
+    updateField("beneficiary_sponsor_link_id", "");
   }
 
   function chooseParentSponsor(item: SponsorOption) {
@@ -477,12 +560,15 @@ export default function SponsorshipsClient() {
     setSelectedChildSponsor(item);
     setChildSponsorSearch(item.sponsor_name || "");
     updateField("sponsor_id", item.id);
+    if (form.beneficiary_id) loadSponsorLink(form.beneficiary_id, item.id);
   }
 
   function clearChildSponsor() {
     setSelectedChildSponsor(null);
     setChildSponsorSearch("");
     updateField("sponsor_id", "");
+    setSponsorLink(null);
+    updateField("beneficiary_sponsor_link_id", "");
     if (selectedParentSponsorId) loadChildSponsors(selectedParentSponsorId, "");
   }
 
@@ -760,6 +846,9 @@ export default function SponsorshipsClient() {
                         {item.beneficiaries?.beneficiary_code || ""}
                         {item.beneficiaries?.file_number
                           ? ` - ملف: ${item.beneficiaries.file_number}`
+                          : ""}
+                        {item.beneficiary_sponsor_links?.sponsor_beneficiary_code
+                          ? ` - رقم الجهة: ${item.beneficiary_sponsor_links.sponsor_beneficiary_code}`
                           : ""}
                       </div>
                     </td>
@@ -1169,6 +1258,134 @@ export default function SponsorshipsClient() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-4 space-y-4"
+                  style={{ borderColor: "var(--app-border)" }}
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h3 className="font-semibold">بيانات المستفيد لدى الجهة</h3>
+                      <p
+                        className="text-xs mt-1"
+                        style={{ color: "var(--app-muted)" }}
+                      >
+                        هذه البيانات تخص علاقة المستفيد بالجهة الفرعية، وتُحفظ مرة واحدة ثم تُستخدم مع أي كفالات لاحقة لنفس المستفيد ونفس الجهة.
+                      </p>
+                    </div>
+
+                    {loadingSponsorLink ? (
+                      <Badge variant="secondary">جاري التحقق...</Badge>
+                    ) : sponsorLink ? (
+                      <Badge>ارتباط موجود</Badge>
+                    ) : form.beneficiary_id && form.sponsor_id ? (
+                      <Badge variant="secondary">ارتباط جديد</Badge>
+                    ) : (
+                      <Badge variant="secondary">اختر المستفيد والجهة</Badge>
+                    )}
+                  </div>
+
+                  {form.beneficiary_id && form.sponsor_id ? (
+                    <>
+                      {sponsorLink && (
+                        <div
+                          className="rounded-lg border p-3 text-sm"
+                          style={{
+                            borderColor: "var(--app-border)",
+                            backgroundColor: "rgba(34, 197, 94, 0.08)",
+                          }}
+                        >
+                          تم العثور على بيانات ارتباط سابقة لهذا المستفيد مع هذه الجهة. يمكنك تعديلها هنا عند الحاجة، وسيتم حفظ التعديل مع الكفالة.
+                        </div>
+                      )}
+
+                      {!sponsorLink && !loadingSponsorLink && (
+                        <div
+                          className="rounded-lg border p-3 text-sm"
+                          style={{
+                            borderColor: "var(--app-border)",
+                            color: "var(--app-muted)",
+                          }}
+                        >
+                          لا يوجد ارتباط سابق لهذا المستفيد مع الجهة المحددة. أدخل بياناته لدى الجهة إن وجدت، وسيتم إنشاء الارتباط تلقائيًا عند حفظ الكفالة.
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <label className="space-y-1">
+                          <span className="text-sm">رقم المستفيد لدى الجهة</span>
+                          <Input
+                            value={form.sponsor_beneficiary_code}
+                            onChange={(e) =>
+                              updateField(
+                                "sponsor_beneficiary_code",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="مثال: A-1055"
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm">رقم الملف لدى الجهة</span>
+                          <Input
+                            value={form.sponsor_file_number}
+                            onChange={(e) =>
+                              updateField("sponsor_file_number", e.target.value)
+                            }
+                            placeholder="مثال: 2026/55"
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm">مرجع الجهة</span>
+                          <Input
+                            value={form.sponsor_reference}
+                            onChange={(e) =>
+                              updateField("sponsor_reference", e.target.value)
+                            }
+                            placeholder="كشف / عقد / مرجع داخلي"
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm">تاريخ التسجيل لدى الجهة</span>
+                          <Input
+                            type="date"
+                            value={form.sponsor_link_registration_date}
+                            onChange={(e) =>
+                              updateField(
+                                "sponsor_link_registration_date",
+                                e.target.value,
+                              )
+                            }
+                          />
+                        </label>
+
+                        <label className="space-y-1 md:col-span-2">
+                          <span className="text-sm">ملاحظات علاقة المستفيد بالجهة</span>
+                          <Input
+                            value={form.sponsor_link_notes}
+                            onChange={(e) =>
+                              updateField("sponsor_link_notes", e.target.value)
+                            }
+                            placeholder="أي ملاحظات خاصة بتسجيل المستفيد لدى هذه الجهة"
+                          />
+                        </label>
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      className="rounded-lg border p-3 text-sm"
+                      style={{
+                        borderColor: "var(--app-border)",
+                        color: "var(--app-muted)",
+                      }}
+                    >
+                      ستظهر هذه الحقول بعد اختيار المستفيد والجهة الفرعية.
+                    </div>
+                  )}
                 </div>
 
                 <div

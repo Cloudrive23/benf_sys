@@ -104,6 +104,7 @@ model beneficiaries {
   periodic_report_attachments periodic_report_attachments[]
   periodic_reports            periodic_reports[]
   sponsorships                sponsorships[]
+  beneficiary_sponsor_links beneficiary_sponsor_links[]
   
   @@index([beneficiary_type], map: "idx_beneficiaries_beneficiary_type")
   @@index([branch_id], map: "idx_beneficiaries_branch_id")
@@ -467,7 +468,8 @@ model sponsors {
   sponsors          sponsors?      @relation("sponsorsTosponsors", fields: [parent_sponsor_id], references: [id])
   other_sponsors    sponsors[]     @relation("sponsorsTosponsors")
   sponsorships      sponsorships[]
-
+  beneficiary_sponsor_links beneficiary_sponsor_links[]
+  
   @@index([sponsor_name], map: "idx_sponsors_name")
   @@index([parent_sponsor_id], map: "idx_sponsors_parent_sponsor_id")
   @@index([sponsor_type], map: "idx_sponsors_sponsor_type")
@@ -512,12 +514,15 @@ model sponsorships {
   sponsorship_status_history  sponsorship_status_history[]
   beneficiaries               beneficiaries                 @relation(fields: [beneficiary_id], references: [id])
   sponsors                    sponsors                      @relation(fields: [sponsor_id], references: [id])
+  beneficiary_sponsor_link_id String? @db.Uuid
+  beneficiary_sponsor_links   beneficiary_sponsor_links? @relation(fields: [beneficiary_sponsor_link_id], references: [id])
 
   @@index([beneficiary_id], map: "idx_sponsorships_beneficiary_id")
   @@index([end_date], map: "idx_sponsorships_end_date")
   @@index([sponsor_id], map: "idx_sponsorships_sponsor_id")
   @@index([start_date], map: "idx_sponsorships_start_date")
   @@index([status], map: "idx_sponsorships_status")
+  @@index([beneficiary_sponsor_link_id], map: "idx_sponsorships_beneficiary_sponsor_link_id")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -1034,4 +1039,28 @@ model entity_field_definitions {
 
   @@unique([entity_id, field_name], map: "uq_entity_field_definition")
   @@index([entity_id], map: "idx_entity_field_definitions_entity_id")
+}
+
+model beneficiary_sponsor_links {
+  id                       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id           String         @db.Uuid
+  sponsor_id               String         @db.Uuid
+  sponsor_beneficiary_code String?        @db.VarChar(100)
+  sponsor_file_number      String?        @db.VarChar(100)
+  sponsor_reference        String?        @db.VarChar(150)
+  registration_date        DateTime?      @db.Date
+  status                   String?        @default("active") @db.VarChar(50)
+  notes                    String?
+  created_at               DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at               DateTime?      @default(now()) @db.Timestamp(6)
+
+  beneficiaries            beneficiaries  @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  sponsors                 sponsors       @relation(fields: [sponsor_id], references: [id])
+  sponsorships             sponsorships[]
+
+  @@unique([beneficiary_id, sponsor_id], map: "uq_beneficiary_sponsor_link")
+  @@index([beneficiary_id], map: "idx_beneficiary_sponsor_links_beneficiary_id")
+  @@index([sponsor_id], map: "idx_beneficiary_sponsor_links_sponsor_id")
+  @@index([sponsor_beneficiary_code], map: "idx_beneficiary_sponsor_links_code")
+  @@index([sponsor_file_number], map: "idx_beneficiary_sponsor_links_file_number")
 }
