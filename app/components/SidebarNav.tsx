@@ -34,14 +34,6 @@ const navGroups = [
 		],
   },
   {
-    title: { ar: "الكفالات والجهات", en: "Sponsorships" },
-    collapsible: true,
-    items: [
-      { href: "/sponsors", label: { ar: "الجهات الكافلة / المانحة", en: "Sponsors" } },
-      { href: "/sponsorships", label: { ar: "الكفالات", en: "Sponsorships" } },
-    ],
-  },
-  {
     title: { ar: "التهيئة والإعدادات", en: "Setup & Settings" },
     collapsible: true,
     items: [
@@ -49,6 +41,8 @@ const navGroups = [
       { href: "/org/sites", label: { ar: "المواقع", en: "Sites" } },
       { href: "/org/centers", label: { ar: "المراكز", en: "Centers" } },
       { href: "/users", label: { ar: "المستخدمون", en: "Users" } },
+      { href: "/roles", label: { ar: "الأدوار والصلاحيات", en: "Roles & Permissions" } },
+      { href: "/user-permissions", label: { ar: "صلاحيات المستخدمين المباشرة", en: "User Permissions" } },
 	  {href: "/audit-settings",label: {ar: "إعدادات سجل التغييرات",en: "Audit Settings",},},
 	  {href: "/duplicate-rules",label: {ar: "سياسات التكرار",en: "Duplicate Rules",},},
 	  {href: "/database-constraint-messages",label: {ar: "رسائل قيود قاعدة البيانات",en: "Database Constraint Messages",},},
