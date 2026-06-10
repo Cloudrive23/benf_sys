@@ -29,22 +29,21 @@ model attachment_types {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model audit_logs {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id     String?   @db.Uuid
-  action      String    @db.VarChar(100)
-  entity_name String    @db.VarChar(100)
-  entity_id   String?   @db.Uuid
-  old_data    Json?
-  new_data    Json?
-  ip_address  String?   @db.VarChar(100)
-  user_agent  String?
-  notes       String?
-  created_at  DateTime? @default(now()) @db.Timestamp(6)
-  entity_type    String? @db.VarChar(100)
-  title_ar       String? @db.VarChar(255)
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String?   @db.Uuid
+  action         String    @db.VarChar(100)
+  entity_name    String    @db.VarChar(100)
+  entity_id      String?   @db.Uuid
+  old_data       Json?
+  new_data       Json?
+  ip_address     String?   @db.VarChar(100)
+  user_agent     String?
+  notes          String?
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  entity_type    String?   @db.VarChar(100)
+  title_ar       String?   @db.VarChar(255)
   description_ar String?
-  username       String? @db.VarChar(150)
-  
+  username       String?   @db.VarChar(150)
 
   @@index([action], map: "idx_audit_logs_action")
   @@index([created_at], map: "idx_audit_logs_created_at")
@@ -69,7 +68,7 @@ model beneficiaries {
   family_name                 String?                       @db.VarChar(100)
   full_name                   String?                       @db.VarChar(255)
   gender                      String?                       @db.VarChar(20)
-  gender_id String? @db.Uuid
+  gender_id                   String?                       @db.Uuid
   birth_date                  DateTime?                     @db.Date
   birth_place                 String?                       @db.VarChar(255)
   nationality                 String?                       @db.VarChar(100)
@@ -83,10 +82,10 @@ model beneficiaries {
   current_status              String?                       @default("draft") @db.VarChar(50)
   notes                       String?
   is_active                   Boolean?                      @default(true)
-  father_id    String? @db.Uuid
-  mother_id    String? @db.Uuid
-  guardian_id  String? @db.Uuid
-  social_notes      String?
+  father_id                   String?                       @db.Uuid
+  mother_id                   String?                       @db.Uuid
+  guardian_id                 String?                       @db.Uuid
+  social_notes                String?
   created_by                  String?                       @db.Uuid
   updated_by                  String?                       @db.Uuid
   created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
@@ -95,7 +94,7 @@ model beneficiaries {
   branches                    branches                      @relation(fields: [branch_id], references: [id])
   centers                     centers?                      @relation(fields: [center_id], references: [id])
   sites                       sites                         @relation(fields: [site_id], references: [id])
-  status_id String? @db.Uuid
+  status_id                   String?                       @db.Uuid
   beneficiary_attachments     beneficiary_attachments[]
   beneficiary_change_logs     beneficiary_change_logs[]
   beneficiary_dynamic_data    beneficiary_dynamic_data[]
@@ -104,8 +103,9 @@ model beneficiaries {
   periodic_report_attachments periodic_report_attachments[]
   periodic_reports            periodic_reports[]
   sponsorships                sponsorships[]
-  beneficiary_sponsor_links beneficiary_sponsor_links[]
-  
+  beneficiary_sponsor_links   beneficiary_sponsor_links[]
+  family_members              beneficiary_family_members[]
+
   @@index([beneficiary_type], map: "idx_beneficiaries_beneficiary_type")
   @@index([branch_id], map: "idx_beneficiaries_branch_id")
   @@index([center_id], map: "idx_beneficiaries_center_id")
@@ -114,7 +114,6 @@ model beneficiaries {
   @@index([full_name], map: "idx_beneficiaries_full_name")
   @@index([identity_number], map: "idx_beneficiaries_identity_number")
   @@index([site_id], map: "idx_beneficiaries_site_id")
-  family_members beneficiary_family_members[]
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -368,6 +367,8 @@ model permissions {
   system_modules     system_modules?    @relation(fields: [module_id], references: [id])
   role_permissions   role_permissions[]
 
+  user_permission_overrides user_permission_overrides[]
+
   @@index([action_code], map: "idx_permissions_action_code")
   @@index([module_id], map: "idx_permissions_module_id")
 }
@@ -450,26 +451,26 @@ model sites {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model sponsors {
-  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sponsor_code      String         @unique @db.VarChar(50)
-  sponsor_name      String         @db.VarChar(255)
-  sponsor_type      String         @db.VarChar(50)
-  parent_sponsor_id String?        @db.Uuid
-  phone             String?        @db.VarChar(50)
-  email             String?        @db.VarChar(255)
-  address           String?
-  contact_person    String?        @db.VarChar(255)
-  notes             String?
-  is_active         Boolean?       @default(true)
-  created_by        String?        @db.Uuid
-  updated_by        String?        @db.Uuid
-  created_at        DateTime?      @default(now()) @db.Timestamp(6)
-  updated_at        DateTime?      @default(now()) @db.Timestamp(6)
-  sponsors          sponsors?      @relation("sponsorsTosponsors", fields: [parent_sponsor_id], references: [id])
-  other_sponsors    sponsors[]     @relation("sponsorsTosponsors")
-  sponsorships      sponsorships[]
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sponsor_code              String                      @unique @db.VarChar(50)
+  sponsor_name              String                      @db.VarChar(255)
+  sponsor_type              String                      @db.VarChar(50)
+  parent_sponsor_id         String?                     @db.Uuid
+  phone                     String?                     @db.VarChar(50)
+  email                     String?                     @db.VarChar(255)
+  address                   String?
+  contact_person            String?                     @db.VarChar(255)
+  notes                     String?
+  is_active                 Boolean?                    @default(true)
+  created_by                String?                     @db.Uuid
+  updated_by                String?                     @db.Uuid
+  created_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  sponsors                  sponsors?                   @relation("sponsorsTosponsors", fields: [parent_sponsor_id], references: [id])
+  other_sponsors            sponsors[]                  @relation("sponsorsTosponsors")
+  sponsorships              sponsorships[]
   beneficiary_sponsor_links beneficiary_sponsor_links[]
-  
+
   @@index([sponsor_name], map: "idx_sponsors_name")
   @@index([parent_sponsor_id], map: "idx_sponsors_parent_sponsor_id")
   @@index([sponsor_type], map: "idx_sponsors_sponsor_type")
@@ -514,8 +515,8 @@ model sponsorships {
   sponsorship_status_history  sponsorship_status_history[]
   beneficiaries               beneficiaries                 @relation(fields: [beneficiary_id], references: [id])
   sponsors                    sponsors                      @relation(fields: [sponsor_id], references: [id])
-  beneficiary_sponsor_link_id String? @db.Uuid
-  beneficiary_sponsor_links   beneficiary_sponsor_links? @relation(fields: [beneficiary_sponsor_link_id], references: [id])
+  beneficiary_sponsor_link_id String?                       @db.Uuid
+  beneficiary_sponsor_links   beneficiary_sponsor_links?    @relation(fields: [beneficiary_sponsor_link_id], references: [id])
 
   @@index([beneficiary_id], map: "idx_sponsorships_beneficiary_id")
   @@index([end_date], map: "idx_sponsorships_end_date")
@@ -577,208 +578,213 @@ model users {
   centers       centers?     @relation(fields: [center_id], references: [id])
   sites         sites?       @relation(fields: [site_id], references: [id])
 
+  user_permission_overrides         user_permission_overrides[] @relation("user_permission_overrides_user")
+  created_user_permission_overrides user_permission_overrides[] @relation("user_permission_overrides_created_by")
+
   @@index([branch_id], map: "idx_users_branch_id")
   @@index([email], map: "idx_users_email")
   @@index([username], map: "idx_users_username")
 }
-model lookups {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  lookup_type  String   @db.VarChar(100)
-  code         String?  @db.VarChar(100)
-  name_ar      String   @db.VarChar(255)
-  name_en      String?  @db.VarChar(255)
-  notes        String?
-  sort_order   Int?     @default(0)
-  is_active    Boolean? @default(true)
-  is_deleted   Boolean? @default(false)
 
-  created_at   DateTime? @default(now()) @db.Timestamp(6)
-  updated_at   DateTime? @default(now()) @db.Timestamp(6)
+model lookups {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lookup_type String   @db.VarChar(100)
+  code        String?  @db.VarChar(100)
+  name_ar     String   @db.VarChar(255)
+  name_en     String?  @db.VarChar(255)
+  notes       String?
+  sort_order  Int?     @default(0)
+  is_active   Boolean? @default(true)
+  is_deleted  Boolean? @default(false)
+
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
   @@index([lookup_type])
 }
 
 model fathers {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  father_code     String    @unique @db.VarChar(50)
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  father_code String @unique @db.VarChar(50)
 
-  branch_id       String    @db.Uuid
+  branch_id String @db.Uuid
 
-  full_name_ar    String    @db.VarChar(255)
-  full_name_en    String?   @db.VarChar(255)
+  full_name_ar String  @db.VarChar(255)
+  full_name_en String? @db.VarChar(255)
 
-  identity_number String?   @db.VarChar(100)
+  identity_number String? @db.VarChar(100)
 
-  birth_date      DateTime? @db.Date
-  death_date      DateTime? @db.Date
+  birth_date DateTime? @db.Date
+  death_date DateTime? @db.Date
 
-  death_reason_id String?   @db.Uuid
+  death_reason_id String? @db.Uuid
 
-  phone           String?   @db.VarChar(50)
-  address         String?
-  occupation      String?   @db.VarChar(255)
-  occupation_id    String?   @db.Uuid
-  notes           String?
+  phone         String? @db.VarChar(50)
+  address       String?
+  occupation    String? @db.VarChar(255)
+  occupation_id String? @db.Uuid
+  notes         String?
 
-  is_active       Boolean?  @default(true)
-  is_deleted      Boolean?  @default(false)
+  is_active  Boolean? @default(true)
+  is_deleted Boolean? @default(false)
 
-  created_at      DateTime? @default(now()) @db.Timestamp(6)
-  updated_at      DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
   @@index([branch_id])
   @@index([full_name_ar])
 }
+
 model mothers {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  mother_code       String    @unique @db.VarChar(50)
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mother_code String @unique @db.VarChar(50)
 
-  branch_id         String    @db.Uuid
+  branch_id String @db.Uuid
 
-  full_name_ar      String    @db.VarChar(255)
-  full_name_en      String?   @db.VarChar(255)
+  full_name_ar String  @db.VarChar(255)
+  full_name_en String? @db.VarChar(255)
 
-  identity_number   String?   @db.VarChar(100)
-  birth_date        DateTime? @db.Date
-  death_date        DateTime? @db.Date
+  identity_number String?   @db.VarChar(100)
+  birth_date      DateTime? @db.Date
+  death_date      DateTime? @db.Date
 
-  death_reason_id   String?   @db.Uuid
-  marital_status_id String?   @db.Uuid
-  gender_id         String?   @db.Uuid
-  occupation_id     String?   @db.Uuid
-  nationality_id    String?   @db.Uuid
-  health_status_id  String?   @db.Uuid
+  death_reason_id   String? @db.Uuid
+  marital_status_id String? @db.Uuid
+  gender_id         String? @db.Uuid
+  occupation_id     String? @db.Uuid
+  nationality_id    String? @db.Uuid
+  health_status_id  String? @db.Uuid
 
-  is_guardian       Boolean?  @default(false)
-  is_alive          Boolean?  @default(true)
+  is_guardian Boolean? @default(false)
+  is_alive    Boolean? @default(true)
 
-  phone             String?   @db.VarChar(50)
-  address           String?
-  notes             String?
+  phone   String? @db.VarChar(50)
+  address String?
+  notes   String?
 
-  is_active         Boolean?  @default(true)
-  is_deleted        Boolean?  @default(false)
+  is_active  Boolean? @default(true)
+  is_deleted Boolean? @default(false)
 
-  created_at        DateTime? @default(now()) @db.Timestamp(6)
-  updated_at        DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
   @@index([branch_id])
   @@index([full_name_ar])
 }
 
 model guardians {
-  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  guardian_code        String    @unique @db.VarChar(50)
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  guardian_code String @unique @db.VarChar(50)
 
-  branch_id            String    @db.Uuid
+  branch_id String @db.Uuid
 
-  full_name_ar         String    @db.VarChar(255)
-  full_name_en         String?   @db.VarChar(255)
+  full_name_ar String  @db.VarChar(255)
+  full_name_en String? @db.VarChar(255)
 
-  identity_number      String?   @db.VarChar(100)
-  birth_date           DateTime? @db.Date
+  identity_number String?   @db.VarChar(100)
+  birth_date      DateTime? @db.Date
 
-  gender_id            String?   @db.Uuid
-  relationship_type_id String?   @db.Uuid
-  marital_status_id    String?   @db.Uuid
-  occupation_id        String?   @db.Uuid
-  nationality_id       String?   @db.Uuid
-  health_status_id     String?   @db.Uuid
+  gender_id            String? @db.Uuid
+  relationship_type_id String? @db.Uuid
+  marital_status_id    String? @db.Uuid
+  occupation_id        String? @db.Uuid
+  nationality_id       String? @db.Uuid
+  health_status_id     String? @db.Uuid
 
-  phone                String?   @db.VarChar(50)
-  address              String?
-  notes                String?
+  phone   String? @db.VarChar(50)
+  address String?
+  notes   String?
 
-  is_mother            Boolean?  @default(false)
-  mother_id            String?   @db.Uuid
+  is_mother Boolean? @default(false)
+  mother_id String?  @db.Uuid
 
-  is_active            Boolean?  @default(true)
-  is_deleted           Boolean?  @default(false)
-  is_alive       Boolean?  @default(true)
-  death_date     DateTime? @db.Date
-  death_reason_id String?  @db.Uuid
-  created_at           DateTime? @default(now()) @db.Timestamp(6)
-  updated_at           DateTime? @default(now()) @db.Timestamp(6)
+  is_active       Boolean?  @default(true)
+  is_deleted      Boolean?  @default(false)
+  is_alive        Boolean?  @default(true)
+  death_date      DateTime? @db.Date
+  death_reason_id String?   @db.Uuid
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  updated_at      DateTime? @default(now()) @db.Timestamp(6)
 
   @@index([branch_id])
   @@index([full_name_ar])
 }
 
 model system_settings {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_name String?   @db.VarChar(255)
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_name String? @db.VarChar(255)
 
-  primary_color     String?   @default("#2563eb") @db.VarChar(20)
-  secondary_color   String?   @default("#1e293b") @db.VarChar(20)
+  primary_color   String? @default("#2563eb") @db.VarChar(20)
+  secondary_color String? @default("#1e293b") @db.VarChar(20)
 
-  font_family       String?   @default("Cairo") @db.VarChar(100)
-  font_size         String?   @default("medium") @db.VarChar(20)
+  font_family String? @default("Cairo") @db.VarChar(100)
+  font_size   String? @default("medium") @db.VarChar(20)
 
-  dark_mode         Boolean?  @default(true)
-  sidebar_mode      String?   @default("expanded") @db.VarChar(50)
+  dark_mode    Boolean? @default(true)
+  sidebar_mode String?  @default("expanded") @db.VarChar(50)
 
-  logo_url          String?
+  logo_url String?
 
-  created_at        DateTime? @default(now()) @db.Timestamp(6)
-  updated_at        DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 }
 
 model beneficiary_field_groups {
-  id            String   @id @default(uuid()) @db.Uuid
-  group_code    String   @unique @db.VarChar(50)
-  group_name_ar String   @db.VarChar(255)
-  group_name_en String?  @db.VarChar(255)
-  sort_order    Int      @default(0)
-  is_active     Boolean  @default(true)
+  id            String  @id @default(uuid()) @db.Uuid
+  group_code    String  @unique @db.VarChar(50)
+  group_name_ar String  @db.VarChar(255)
+  group_name_en String? @db.VarChar(255)
+  sort_order    Int     @default(0)
+  is_active     Boolean @default(true)
 
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   fields beneficiary_custom_fields[]
-  tab_id String? @db.Uuid
-    tab beneficiary_field_tabs? @relation(fields: [tab_id], references: [id])
+  tab_id String?                     @db.Uuid
+  tab    beneficiary_field_tabs?     @relation(fields: [tab_id], references: [id])
 }
 
 model beneficiary_custom_fields {
-  id             String   @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.Uuid
 
-  group_id       String   @db.Uuid
+  group_id String @db.Uuid
 
-  field_code     String   @db.VarChar(100)
+  field_code String @db.VarChar(100)
 
-  field_label_ar String   @db.VarChar(255)
-  field_label_en String?  @db.VarChar(255)
+  field_label_ar String  @db.VarChar(255)
+  field_label_en String? @db.VarChar(255)
 
-  field_type     String   @default("text") @db.VarChar(50)
+  field_type String @default("text") @db.VarChar(50)
 
-  lookup_type    String?  @db.VarChar(100)
+  lookup_type String? @db.VarChar(100)
 
-  is_required    Boolean  @default(false)
+  is_required Boolean @default(false)
 
-  sort_order     Int      @default(0)
+  sort_order Int @default(0)
 
-  is_active      Boolean  @default(true)
+  is_active Boolean @default(true)
 
   lookup_type_id String? @db.Uuid
-  
+
   placeholder_ar String? @db.VarChar(255)
   placeholder_en String? @db.VarChar(255)
   help_text_ar   String?
   help_text_en   String?
 
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   group beneficiary_field_groups @relation(fields: [group_id], references: [id])
 
-  values beneficiary_custom_values[]
+  values             beneficiary_custom_values[]
   default_value      String?
-	is_readonly        Boolean? @default(false)
-	min_value          Decimal?
-	max_value          Decimal?
-	min_length         Int?
-	max_length         Int?
-	validation_pattern String?
+  is_readonly        Boolean?                    @default(false)
+  min_value          Decimal?
+  max_value          Decimal?
+  min_length         Int?
+  max_length         Int?
+  validation_pattern String?
 }
 
 model beneficiary_custom_values {
@@ -787,15 +793,15 @@ model beneficiary_custom_values {
   beneficiary_id String @db.Uuid
   field_id       String @db.Uuid
 
-  value_text     String?
-  value_number   Decimal?
-  value_date     DateTime?
-  value_boolean  Boolean?
+  value_text    String?
+  value_number  Decimal?
+  value_date    DateTime?
+  value_boolean Boolean?
 
-  lookup_id      String? @db.Uuid
+  lookup_id String? @db.Uuid
 
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   field beneficiary_custom_fields @relation(fields: [field_id], references: [id])
 
@@ -803,29 +809,29 @@ model beneficiary_custom_values {
 }
 
 model beneficiary_field_tabs {
-  id          String   @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.Uuid
 
-  tab_code    String   @unique @db.VarChar(50)
-  tab_name_ar String   @db.VarChar(255)
-  tab_name_en String?  @db.VarChar(255)
+  tab_code    String  @unique @db.VarChar(50)
+  tab_name_ar String  @db.VarChar(255)
+  tab_name_en String? @db.VarChar(255)
 
-  sort_order  Int      @default(0)
+  sort_order Int @default(0)
 
-  is_active   Boolean  @default(true)
+  is_active Boolean @default(true)
 
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   groups beneficiary_field_groups[]
 }
 
 model lookup_types {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type_code    String   @unique @db.VarChar(100)
-  type_name_ar String   @db.VarChar(255)
-  type_name_en String?  @db.VarChar(255)
-  sort_order   Int?     @default(0)
-  is_active    Boolean? @default(true)
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type_code    String    @unique @db.VarChar(100)
+  type_name_ar String    @db.VarChar(255)
+  type_name_en String?   @db.VarChar(255)
+  sort_order   Int?      @default(0)
+  is_active    Boolean?  @default(true)
   created_at   DateTime? @default(now()) @db.Timestamp(6)
   updated_at   DateTime? @default(now()) @db.Timestamp(6)
 
@@ -833,234 +839,254 @@ model lookup_types {
 }
 
 model beneficiary_family_members {
-  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  beneficiary_id         String    @db.Uuid
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id String @db.Uuid
 
-  full_name_ar           String    @db.VarChar(255)
-  gender                 String?   @db.VarChar(100)
-  birth_date             DateTime? @db.Date
+  full_name_ar String    @db.VarChar(255)
+  gender       String?   @db.VarChar(100)
+  birth_date   DateTime? @db.Date
 
-  relationship_type      String?   @db.VarChar(100)
-  relationship_lookup_id String?   @db.Uuid
+  relationship_type      String? @db.VarChar(100)
+  relationship_lookup_id String? @db.Uuid
 
-  identity_number        String?   @db.VarChar(100)
-  phone                  String?   @db.VarChar(50)
+  identity_number String? @db.VarChar(100)
+  phone           String? @db.VarChar(50)
 
-  education_status       String?   @db.VarChar(100)
-  health_status          String?   @db.VarChar(100)
-  notes                  String?
+  education_status String? @db.VarChar(100)
+  health_status    String? @db.VarChar(100)
+  notes            String?
 
-  is_dependent           Boolean?  @default(true)
-  is_active              Boolean?  @default(true)
+  is_dependent Boolean? @default(true)
+  is_active    Boolean? @default(true)
 
-  created_at             DateTime? @default(now()) @db.Timestamp(6)
-  updated_at             DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
-  beneficiary            beneficiaries @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  beneficiary beneficiaries @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
 
   @@index([beneficiary_id])
 }
 
 model audit_entities {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  entity_key         String   @unique @db.VarChar(100)
-  entity_name        String   @db.VarChar(100)
-  entity_type        String   @db.VarChar(100)
+  entity_key  String @unique @db.VarChar(100)
+  entity_name String @db.VarChar(100)
+  entity_type String @db.VarChar(100)
 
-  label_ar           String   @db.VarChar(255)
-  display_name_field String?  @db.VarChar(100)
+  label_ar           String  @db.VarChar(255)
+  display_name_field String? @db.VarChar(100)
 
-  is_active          Boolean? @default(true)
+  is_active Boolean? @default(true)
 
-  created_at         DateTime? @default(now()) @db.Timestamp(6)
-  updated_at         DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
-  fields             audit_entity_fields[]
+  fields audit_entity_fields[]
 
   @@index([entity_key])
 }
 
 model audit_entity_fields {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  entity_id      String   @db.Uuid
+  entity_id String @db.Uuid
 
-  field_name     String   @db.VarChar(100)
-  field_label_ar String   @db.VarChar(255)
+  field_name     String @db.VarChar(100)
+  field_label_ar String @db.VarChar(255)
 
-  is_tracked     Boolean? @default(true)
-  is_lookup      Boolean? @default(false)
-  lookup_type    String?  @db.VarChar(100)
+  is_tracked  Boolean? @default(true)
+  is_lookup   Boolean? @default(false)
+  lookup_type String?  @db.VarChar(100)
 
-  sort_order     Int?     @default(0)
-  is_active      Boolean? @default(true)
+  sort_order Int?     @default(0)
+  is_active  Boolean? @default(true)
 
-  created_at     DateTime? @default(now()) @db.Timestamp(6)
-  updated_at     DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
-  entity         audit_entities @relation(fields: [entity_id], references: [id], onDelete: Cascade)
+  entity audit_entities @relation(fields: [entity_id], references: [id], onDelete: Cascade)
 
   @@unique([entity_id, field_name])
   @@index([entity_id])
 }
 
 model duplicate_rules {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  entity_key         String   @db.VarChar(100)
-  entity_name        String   @db.VarChar(100)
-  label_ar           String   @db.VarChar(255)
+  entity_key  String @db.VarChar(100)
+  entity_name String @db.VarChar(100)
+  label_ar    String @db.VarChar(255)
 
-  rule_name_ar       String   @db.VarChar(255)
+  rule_name_ar String @db.VarChar(255)
 
-  action_mode        String   @default("warn") @db.VarChar(30)
-  scope_level        String   @default("system") @db.VarChar(30)
-  scope_field        String?  @db.VarChar(100)
+  action_mode String  @default("warn") @db.VarChar(30)
+  scope_level String  @default("system") @db.VarChar(30)
+  scope_field String? @db.VarChar(100)
 
-  display_name_field String?  @db.VarChar(100)
+  display_name_field String? @db.VarChar(100)
 
-  message_ar         String?
+  message_ar String?
 
-  is_active          Boolean? @default(true)
+  is_active Boolean? @default(true)
 
-  created_at         DateTime? @default(now()) @db.Timestamp(6)
-  updated_at         DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
-  fields             duplicate_rule_fields[]
+  fields duplicate_rule_fields[]
 
   @@index([entity_key])
 }
 
 model duplicate_rule_fields {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  rule_id        String   @db.Uuid
+  rule_id String @db.Uuid
 
-  field_name     String   @db.VarChar(100)
-  field_label_ar String   @db.VarChar(255)
+  field_name     String @db.VarChar(100)
+  field_label_ar String @db.VarChar(255)
 
-  match_type     String   @default("exact") @db.VarChar(30)
-  is_required    Boolean? @default(true)
+  match_type  String   @default("exact") @db.VarChar(30)
+  is_required Boolean? @default(true)
 
-  sort_order     Int?     @default(0)
-  is_active      Boolean? @default(true)
+  sort_order Int?     @default(0)
+  is_active  Boolean? @default(true)
 
-  created_at     DateTime? @default(now()) @db.Timestamp(6)
-  updated_at     DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
-  rule           duplicate_rules @relation(fields: [rule_id], references: [id], onDelete: Cascade)
+  rule duplicate_rules @relation(fields: [rule_id], references: [id], onDelete: Cascade)
 
   @@unique([rule_id, field_name])
   @@index([rule_id])
 }
 
 model database_constraint_messages {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  table_name      String   @db.VarChar(100)
-  field_name      String   @db.VarChar(100)
-  constraint_type String   @default("unique") @db.VarChar(50)
+  table_name      String @db.VarChar(100)
+  field_name      String @db.VarChar(100)
+  constraint_type String @default("unique") @db.VarChar(50)
 
-  message_ar      String
-  is_active       Boolean? @default(true)
+  message_ar String
+  is_active  Boolean? @default(true)
 
-  created_at      DateTime? @default(now()) @db.Timestamp(6)
-  updated_at      DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
   @@unique([table_name, field_name, constraint_type], map: "uq_database_constraint_message")
   @@index([table_name, field_name, constraint_type], map: "idx_database_constraint_messages_lookup")
 }
 
 model entity_definitions {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  entity_key         String   @unique @db.VarChar(100)
-  table_name         String   @db.VarChar(100)
+  entity_key String @unique @db.VarChar(100)
+  table_name String @db.VarChar(100)
 
-  label_ar           String   @db.VarChar(255)
-  label_en           String?  @db.VarChar(255)
+  label_ar String  @db.VarChar(255)
+  label_en String? @db.VarChar(255)
 
-  route_path         String?  @db.VarChar(255)
-  api_path           String?  @db.VarChar(255)
+  route_path String? @db.VarChar(255)
+  api_path   String? @db.VarChar(255)
 
-  display_name_field String?  @db.VarChar(100)
-  code_field         String?  @db.VarChar(100)
+  display_name_field String? @db.VarChar(100)
+  code_field         String? @db.VarChar(100)
 
-  icon_name          String?  @db.VarChar(100)
+  icon_name String? @db.VarChar(100)
 
-  is_system          Boolean? @default(false)
-  is_active          Boolean? @default(true)
+  is_system Boolean? @default(false)
+  is_active Boolean? @default(true)
 
-  allow_create       Boolean? @default(true)
-  allow_update       Boolean? @default(true)
-  allow_delete       Boolean? @default(true)
-  allow_import       Boolean? @default(false)
-  allow_export       Boolean? @default(true)
+  allow_create Boolean? @default(true)
+  allow_update Boolean? @default(true)
+  allow_delete Boolean? @default(true)
+  allow_import Boolean? @default(false)
+  allow_export Boolean? @default(true)
 
-  created_at         DateTime? @default(now()) @db.Timestamp(6)
-  updated_at         DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
-  fields             entity_field_definitions[]
+  fields entity_field_definitions[]
 }
 
 model entity_field_definitions {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  entity_id           String   @db.Uuid
-  field_name          String   @db.VarChar(100)
-  field_label_ar      String   @db.VarChar(255)
-  field_label_en      String?  @db.VarChar(255)
+  entity_id      String  @db.Uuid
+  field_name     String  @db.VarChar(100)
+  field_label_ar String  @db.VarChar(255)
+  field_label_en String? @db.VarChar(255)
 
-  data_type           String?  @db.VarChar(100)
-  input_type          String?  @default("text") @db.VarChar(100)
+  data_type  String? @db.VarChar(100)
+  input_type String? @default("text") @db.VarChar(100)
 
   is_required         Boolean? @default(false)
   is_visible_in_table Boolean? @default(true)
   is_visible_in_form  Boolean? @default(true)
   is_readonly         Boolean? @default(false)
 
-  is_lookup           Boolean? @default(false)
-  lookup_type         String?  @db.VarChar(100)
+  is_lookup   Boolean? @default(false)
+  lookup_type String?  @db.VarChar(100)
 
-  sort_order          Int?     @default(0)
+  sort_order Int? @default(0)
 
-  is_active           Boolean? @default(true)
+  is_active Boolean? @default(true)
 
-  created_at          DateTime? @default(now()) @db.Timestamp(6)
-  updated_at          DateTime? @default(now()) @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
 
-  reference_type        String?  @default("none") @db.VarChar(30)
-  reference_table       String?  @db.VarChar(100)
-  reference_key_field   String?  @default("id") @db.VarChar(100)
-  reference_label_field String?  @db.VarChar(100)  
+  reference_type        String? @default("none") @db.VarChar(30)
+  reference_table       String? @db.VarChar(100)
+  reference_key_field   String? @default("id") @db.VarChar(100)
+  reference_label_field String? @db.VarChar(100)
 
-  entity              entity_definitions @relation(fields: [entity_id], references: [id], onDelete: Cascade)
+  entity entity_definitions @relation(fields: [entity_id], references: [id], onDelete: Cascade)
 
   @@unique([entity_id, field_name], map: "uq_entity_field_definition")
   @@index([entity_id], map: "idx_entity_field_definitions_entity_id")
 }
 
 model beneficiary_sponsor_links {
-  id                       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  beneficiary_id           String         @db.Uuid
-  sponsor_id               String         @db.Uuid
-  sponsor_beneficiary_code String?        @db.VarChar(100)
-  sponsor_file_number      String?        @db.VarChar(100)
-  sponsor_reference        String?        @db.VarChar(150)
-  registration_date        DateTime?      @db.Date
-  status                   String?        @default("active") @db.VarChar(50)
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id           String    @db.Uuid
+  sponsor_id               String    @db.Uuid
+  sponsor_beneficiary_code String?   @db.VarChar(100)
+  sponsor_file_number      String?   @db.VarChar(100)
+  sponsor_reference        String?   @db.VarChar(150)
+  registration_date        DateTime? @db.Date
+  status                   String?   @default("active") @db.VarChar(50)
   notes                    String?
-  created_at               DateTime?      @default(now()) @db.Timestamp(6)
-  updated_at               DateTime?      @default(now()) @db.Timestamp(6)
+  created_at               DateTime? @default(now()) @db.Timestamp(6)
+  updated_at               DateTime? @default(now()) @db.Timestamp(6)
 
-  beneficiaries            beneficiaries  @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
-  sponsors                 sponsors       @relation(fields: [sponsor_id], references: [id])
-  sponsorships             sponsorships[]
+  beneficiaries beneficiaries  @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  sponsors      sponsors       @relation(fields: [sponsor_id], references: [id])
+  sponsorships  sponsorships[]
 
   @@unique([beneficiary_id, sponsor_id], map: "uq_beneficiary_sponsor_link")
   @@index([beneficiary_id], map: "idx_beneficiary_sponsor_links_beneficiary_id")
   @@index([sponsor_id], map: "idx_beneficiary_sponsor_links_sponsor_id")
   @@index([sponsor_beneficiary_code], map: "idx_beneficiary_sponsor_links_code")
   @@index([sponsor_file_number], map: "idx_beneficiary_sponsor_links_file_number")
+}
+
+model user_permission_overrides {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String    @db.Uuid
+  permission_id String    @db.Uuid
+  effect        String    @db.VarChar(20)
+  reason        String?
+  created_by    String?   @db.Uuid
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at    DateTime? @default(now()) @db.Timestamp(6)
+
+  users           users       @relation("user_permission_overrides_user", fields: [user_id], references: [id], onDelete: Cascade)
+  permissions     permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  created_by_user users?      @relation("user_permission_overrides_created_by", fields: [created_by], references: [id])
+
+  @@unique([user_id, permission_id], map: "uq_user_permission_override")
+  @@index([user_id], map: "idx_user_permission_overrides_user_id")
+  @@index([permission_id], map: "idx_user_permission_overrides_permission_id")
+  @@index([effect], map: "idx_user_permission_overrides_effect")
 }
