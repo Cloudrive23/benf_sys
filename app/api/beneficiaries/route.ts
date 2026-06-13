@@ -1,13 +1,20 @@
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
-import { getCurrentUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { beneficiariesService } from "@/services/beneficiaries.service";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const permission = await requirePermission("beneficiaries.view");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const beneficiaries = await beneficiariesService.listBeneficiaries();
+
     return successResponse(
       beneficiaries,
       "تم تحميل المستفيدين بنجاح",
@@ -21,12 +28,17 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requirePermission("beneficiaries.create");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
-    const user = await getCurrentUser();
 
     const beneficiary = await beneficiariesService.createBeneficiary(body, {
-      id: user?.id,
-      role: user?.role,
+      id: permission.user?.id,
+      role: "user",
     });
 
     return successResponse(beneficiary, "تم إنشاء المستفيد بنجاح", 201);
@@ -37,12 +49,17 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const permission = await requirePermission("beneficiaries.update");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
-    const user = await getCurrentUser();
 
     const beneficiary = await beneficiariesService.updateBeneficiary(body, {
-      id: user?.id,
-      role: user?.role,
+      id: permission.user?.id,
+      role: "user",
     });
 
     return successResponse(beneficiary, "تم تعديل المستفيد بنجاح");
@@ -53,6 +70,12 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const permission = await requirePermission("beneficiaries.delete");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
