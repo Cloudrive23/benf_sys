@@ -171,6 +171,41 @@ export default function BeneficiariesClient() {
   const [identityTypes, setIdentityTypes] = useState<LookupItem[]>([]);
 
   const [dynamicValues, setDynamicValues] = useState<any>({});
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      setPermissionsLoaded(false);
+
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+
+      if (data.success) {
+        const rawPermissions = data.data?.permissions || [];
+
+        const normalizedPermissions = rawPermissions
+          .map((permission: any) =>
+            typeof permission === "string"
+              ? permission
+              : permission?.permission_code || permission?.code || ""
+          )
+          .filter(Boolean);
+
+        setPermissions(normalizedPermissions);
+      } else {
+        setPermissions([]);
+      }
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
 
   async function load() {
     const res = await fetch("/api/beneficiaries", { cache: "no-store" });
@@ -284,6 +319,7 @@ export default function BeneficiariesClient() {
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
     loadOrgUnits();
     loadFathers();
@@ -330,6 +366,16 @@ export default function BeneficiariesClient() {
   }
 
   async function openCreate() {
+    if (!permissionsLoaded) {
+      toast.error("جاري تحميل الصلاحيات، حاول مرة أخرى");
+      return;
+    }
+
+    if (!can("beneficiaries.create")) {
+      toast.error("ليس لديك صلاحية إضافة مستفيد");
+      return;
+    }
+
     setForm({
       ...emptyForm,
       branch_id: branches[0]?.id || "",
@@ -345,6 +391,16 @@ export default function BeneficiariesClient() {
   }
 
   function edit(item: Beneficiary) {
+    if (!permissionsLoaded) {
+      toast.error("جاري تحميل الصلاحيات، حاول مرة أخرى");
+      return;
+    }
+
+    if (!can("beneficiaries.update")) {
+      toast.error("ليس لديك صلاحية تعديل المستفيدين");
+      return;
+    }
+
     const father = getRelated(item, "father");
     const mother = getRelated(item, "mother");
     const guardian = getRelated(item, "guardian");
@@ -427,6 +483,19 @@ export default function BeneficiariesClient() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
 
+    const requiredPermission = form.id
+      ? "beneficiaries.update"
+      : "beneficiaries.create";
+
+    if (!permissionsLoaded) {
+      toast.error("جاري تحميل الصلاحيات، حاول مرة أخرى");
+      return;
+    }
+
+    if (!can(requiredPermission)) {
+      toast.error("ليس لديك صلاحية تنفيذ هذه العملية");
+      return;
+    }
     if (!form.branch_id) {
       toast.error("يجب اختيار الفرع / المحافظة");
       return;
@@ -487,6 +556,16 @@ export default function BeneficiariesClient() {
   }
 
   async function remove(id: string) {
+    if (!permissionsLoaded) {
+      toast.error("جاري تحميل الصلاحيات، حاول مرة أخرى");
+      return;
+    }
+
+    if (!can("beneficiaries.delete")) {
+      toast.error("ليس لديك صلاحية حذف المستفيدين");
+      return;
+    }
+
     if (!confirm("هل أنت متأكد من حذف المستفيد؟")) return;
 
     const res = await fetch(`/api/beneficiaries?id=${id}`, {
@@ -513,13 +592,15 @@ export default function BeneficiariesClient() {
           </p>
         </div>
 
-        <Button
-          onClick={openCreate}
-          style={{ backgroundColor: "var(--app-primary)", color: "white" }}
-        >
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة مستفيد
-        </Button>
+        {permissionsLoaded && can("beneficiaries.create") && (
+          <Button
+            onClick={openCreate}
+            style={{ backgroundColor: "var(--app-primary)", color: "white" }}
+          >
+            <Plus className="w-4 h-4 ml-2" />
+            إضافة مستفيد
+          </Button>
+        )}
       </div>
 
       <div
@@ -591,20 +672,33 @@ export default function BeneficiariesClient() {
                       <Badge>{getStatusLabel(item)}</Badge>
                     </td>
                     <td className="p-3 text-left space-x-2 space-x-reverse whitespace-nowrap">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => edit(item)}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => remove(item.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {permissionsLoaded && can("beneficiaries.update") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => edit(item)}
+                          title="تعديل"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+
+                      {permissionsLoaded && can("beneficiaries.delete") && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => remove(item.id)}
+                          title="حذف"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+
+                      {permissionsLoaded &&
+                        !can("beneficiaries.update") &&
+                        !can("beneficiaries.delete") && (
+                          <span style={{ color: "var(--app-muted)" }}>-</span>
+                        )}
                     </td>
                   </tr>
                 ))
@@ -765,17 +859,20 @@ export default function BeneficiariesClient() {
                   إلغاء
                 </Button>
 
-                <Button
-                  type="submit"
-                  disabled={saving}
-                  className="min-w-24"
-                  style={{
-                    backgroundColor: "var(--app-primary)",
-                    color: "white",
-                  }}
-                >
-                  {saving ? "جاري الحفظ..." : "حفظ"}
-                </Button>
+                {((form.id && can("beneficiaries.update")) ||
+                  (!form.id && can("beneficiaries.create"))) && (
+                  <Button
+                    type="submit"
+                    disabled={saving || !permissionsLoaded}
+                    className="min-w-24"
+                    style={{
+                      backgroundColor: "var(--app-primary)",
+                      color: "white",
+                    }}
+                  >
+                    {saving ? "جاري الحفظ..." : "حفظ"}
+                  </Button>
+                )}
               </div>
             </form>
           </div>
