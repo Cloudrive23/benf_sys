@@ -182,6 +182,9 @@ export default function SponsorshipsClient() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState<{
     type: "success" | "error" | "info";
     text: string;
@@ -190,19 +193,69 @@ export default function SponsorshipsClient() {
   const [sponsorLink, setSponsorLink] = useState<BeneficiarySponsorLink | null>(null);
   const [loadingSponsorLink, setLoadingSponsorLink] = useState(false);
 
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+      const rawPermissions = data?.data?.permissions || [];
+
+      if (data.success && Array.isArray(rawPermissions)) {
+        const allowedPermissions = rawPermissions
+          .filter((item: any) => {
+            if (typeof item === "string") return true;
+            return item?.allowed === true;
+          })
+          .map((item: any) =>
+            typeof item === "string" ? item : item.permission_code
+          )
+          .filter(Boolean);
+
+        setPermissions(allowedPermissions);
+      } else {
+        setPermissions([]);
+      }
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
+
   async function load() {
     setLoading(true);
+    setLoadError("");
+
     try {
       const res = await fetch("/api/sponsorships", { cache: "no-store" });
       const data = await res.json();
 
       if (data.success) {
         setItems(data.data || []);
+        return;
+      }
+
+      const message =
+        data.message ||
+        (res.status === 403
+          ? "ليس لديك صلاحية عرض الكفالات"
+          : "تعذر تحميل الكفالات");
+
+      setItems([]);
+
+      if (res.status === 401 || res.status === 403) {
+        setLoadError(message);
       } else {
-        toast.error(data.message || "تعذر تحميل الكفالات");
+        toast.error(message);
       }
     } catch {
-      toast.error("تعذر الاتصال بالخادم");
+      const message = "تعذر الاتصال بالخادم";
+      setItems([]);
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -330,6 +383,7 @@ export default function SponsorshipsClient() {
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
     loadParentSponsors();
     loadLookup("sponsorship_types", setSponsorshipTypes);
@@ -446,6 +500,11 @@ export default function SponsorshipsClient() {
   }
 
   function openCreate() {
+    if (!can("sponsorships.create")) {
+      toast.error("ليس لديك صلاحية إضافة كفالة");
+      return;
+    }
+
     resetSearchControls();
     setForm({
       ...emptyForm,
@@ -460,6 +519,11 @@ export default function SponsorshipsClient() {
   }
 
   function openEdit(item: Sponsorship) {
+    if (!can("sponsorships.update")) {
+      toast.error("ليس لديك صلاحية تعديل الكفالات");
+      return;
+    }
+
     resetSearchControls();
 
     const beneficiary = item.beneficiaries || null;
@@ -584,6 +648,14 @@ export default function SponsorshipsClient() {
     event.preventDefault();
     setNotice(null);
 
+    const requiredPermission = form.id ? "sponsorships.update" : "sponsorships.create";
+
+    if (!can(requiredPermission)) {
+      setNotice({ type: "error", text: "ليس لديك صلاحية تنفيذ هذه العملية." });
+      toast.error("ليس لديك صلاحية تنفيذ هذه العملية");
+      return;
+    }
+
     if (!form.beneficiary_id) {
       setNotice({ type: "error", text: "اختر المستفيد من نتائج البحث أولًا." });
       toast.error("اختر المستفيد");
@@ -665,6 +737,11 @@ export default function SponsorshipsClient() {
   }
 
   async function remove(item: Sponsorship) {
+    if (!can("sponsorships.delete")) {
+      toast.error("ليس لديك صلاحية حذف الكفالات");
+      return;
+    }
+
     const ok = confirm(`هل تريد حذف الكفالة ${item.sponsorship_code}؟`);
     if (!ok) return;
 
@@ -696,10 +773,12 @@ export default function SponsorshipsClient() {
           </p>
         </div>
 
-        <Button onClick={openCreate} className="gap-2">
-          <Plus className="h-4 w-4" />
-          إضافة كفالة
-        </Button>
+        {permissionsLoaded && can("sponsorships.create") && (
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="h-4 w-4" />
+            إضافة كفالة
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -815,6 +894,20 @@ export default function SponsorshipsClient() {
                     جاري التحميل...
                   </td>
                 </tr>
+              ) : loadError ? (
+                <tr>
+                  <td colSpan={9} className="p-8 text-center">
+                    <div
+                      className="mx-auto max-w-xl rounded-xl border p-4"
+                      style={{
+                        borderColor: "var(--app-border)",
+                        color: "var(--app-muted)",
+                      }}
+                    >
+                      {loadError}
+                    </div>
+                  </td>
+                </tr>
               ) : filtered.length === 0 ? (
                 <tr>
                   <td
@@ -883,20 +976,24 @@ export default function SponsorshipsClient() {
                     </td>
                     <td className="p-3 text-left whitespace-nowrap">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEdit(item)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => remove(item)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {permissionsLoaded && can("sponsorships.update") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEdit(item)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {permissionsLoaded && can("sponsorships.delete") && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => remove(item)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1533,9 +1630,11 @@ export default function SponsorshipsClient() {
                 >
                   إلغاء
                 </Button>
-                <Button type="submit" disabled={saving}>
-                  {saving ? "جاري الحفظ..." : "حفظ"}
-                </Button>
+                {((form.id && can("sponsorships.update")) || (!form.id && can("sponsorships.create"))) && (
+                  <Button type="submit" disabled={saving}>
+                    {saving ? "جاري الحفظ..." : "حفظ"}
+                  </Button>
+                )}
               </div>
             </form>
           </div>

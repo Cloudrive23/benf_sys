@@ -86,21 +86,74 @@ export default function SponsorsClient() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
+
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+      const rawPermissions = data?.data?.permissions || [];
+
+      if (data.success && Array.isArray(rawPermissions)) {
+        const allowedPermissions = rawPermissions
+          .filter((item: any) => {
+            if (typeof item === "string") return true;
+            return item?.allowed === true;
+          })
+          .map((item: any) =>
+            typeof item === "string" ? item : item.permission_code
+          )
+          .filter(Boolean);
+
+        setPermissions(allowedPermissions);
+      } else {
+        setPermissions([]);
+      }
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
 
   async function load() {
     setLoading(true);
+    setLoadError("");
+
     try {
       const res = await fetch("/api/sponsors", { cache: "no-store" });
       const data = await res.json();
 
       if (data.success) {
         setItems(data.data || []);
+        return;
+      }
+
+      const message =
+        data.message ||
+        (res.status === 403
+          ? "ليس لديك صلاحية عرض الجهات الكافلة / المانحة"
+          : "تعذر تحميل الجهات الكافلة");
+
+      setItems([]);
+
+      if (res.status === 401 || res.status === 403) {
+        setLoadError(message);
       } else {
-        toast.error(data.message || "تعذر تحميل الجهات الكافلة");
+        toast.error(message);
       }
     } catch {
-      toast.error("تعذر الاتصال بالخادم");
+      const message = "تعذر الاتصال بالخادم";
+      setItems([]);
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -122,6 +175,7 @@ export default function SponsorsClient() {
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
     loadSponsorTypes();
   }, []);
@@ -212,6 +266,11 @@ export default function SponsorsClient() {
   }
 
   function openCreate() {
+    if (!can("sponsors.create")) {
+      toast.error("ليس لديك صلاحية إضافة جهة داعمة");
+      return;
+    }
+
     setForm({
       ...emptyForm,
       sponsor_type: sponsorTypes[0]?.code || "individual",
@@ -220,6 +279,11 @@ export default function SponsorsClient() {
   }
 
   function openCreateChild(parent: Sponsor) {
+    if (!can("sponsors.create")) {
+      toast.error("ليس لديك صلاحية إضافة جهة فرعية");
+      return;
+    }
+
     setForm({
       ...emptyForm,
       sponsor_name: "",
@@ -236,6 +300,11 @@ export default function SponsorsClient() {
   }
 
   function openEdit(item: Sponsor) {
+    if (!can("sponsors.update")) {
+      toast.error("ليس لديك صلاحية تعديل الجهات الداعمة");
+      return;
+    }
+
     setForm({
       id: item.id,
       sponsor_code: item.sponsor_code || "",
@@ -254,6 +323,13 @@ export default function SponsorsClient() {
 
   async function save(e: FormEvent) {
     e.preventDefault();
+
+    const requiredPermission = form.id ? "sponsors.update" : "sponsors.create";
+
+    if (!can(requiredPermission)) {
+      toast.error("ليس لديك صلاحية تنفيذ هذه العملية");
+      return;
+    }
 
     if (!form.sponsor_name.trim()) {
       toast.error("اسم الجهة مطلوب");
@@ -299,6 +375,11 @@ export default function SponsorsClient() {
   }
 
   async function remove(item: Sponsor) {
+    if (!can("sponsors.delete")) {
+      toast.error("ليس لديك صلاحية حذف الجهات الداعمة");
+      return;
+    }
+
     if (!confirm(`هل تريد حذف الجهة: ${item.sponsor_name}؟`)) return;
 
     try {
@@ -346,12 +427,16 @@ export default function SponsorsClient() {
         <td className="p-3 whitespace-nowrap">كفالات: {child._count?.sponsorships || 0}</td>
         <td className="p-3 whitespace-nowrap">{renderStatusBadge(child)}</td>
         <td className="p-3 text-left whitespace-nowrap space-x-2 space-x-reverse">
-          <Button size="sm" variant="outline" onClick={() => openEdit(child)} title="تعديل">
-            <Pencil className="w-4 h-4" />
-          </Button>
-          <Button size="sm" variant="destructive" onClick={() => remove(child)} title="حذف">
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          {permissionsLoaded && can("sponsors.update") && (
+            <Button size="sm" variant="outline" onClick={() => openEdit(child)} title="تعديل">
+              <Pencil className="w-4 h-4" />
+            </Button>
+          )}
+          {permissionsLoaded && can("sponsors.delete") && (
+            <Button size="sm" variant="destructive" onClick={() => remove(child)} title="حذف">
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
         </td>
       </tr>
     );
@@ -394,16 +479,22 @@ export default function SponsorsClient() {
           </td>
           <td className="p-3 whitespace-nowrap">{renderStatusBadge(parent)}</td>
           <td className="p-3 text-left whitespace-nowrap space-x-2 space-x-reverse">
-            <Button size="sm" variant="outline" onClick={() => openCreateChild(parent)}>
-              <Plus className="w-4 h-4 ml-1" />
-              فرعية
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => openEdit(parent)} title="تعديل">
-              <Pencil className="w-4 h-4" />
-            </Button>
-            <Button size="sm" variant="destructive" onClick={() => remove(parent)} title="حذف">
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            {permissionsLoaded && can("sponsors.create") && (
+              <Button size="sm" variant="outline" onClick={() => openCreateChild(parent)}>
+                <Plus className="w-4 h-4 ml-1" />
+                فرعية
+              </Button>
+            )}
+            {permissionsLoaded && can("sponsors.update") && (
+              <Button size="sm" variant="outline" onClick={() => openEdit(parent)} title="تعديل">
+                <Pencil className="w-4 h-4" />
+              </Button>
+            )}
+            {permissionsLoaded && can("sponsors.delete") && (
+              <Button size="sm" variant="destructive" onClick={() => remove(parent)} title="حذف">
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </td>
         </tr>
 
@@ -430,10 +521,12 @@ export default function SponsorsClient() {
           </p>
         </div>
 
-        <Button onClick={openCreate} style={{ backgroundColor: "var(--app-primary)", color: "white" }}>
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة جهة رئيسية
-        </Button>
+        {permissionsLoaded && can("sponsors.create") && (
+          <Button onClick={openCreate} style={{ backgroundColor: "var(--app-primary)", color: "white" }}>
+            <Plus className="w-4 h-4 ml-2" />
+            إضافة جهة رئيسية
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -500,6 +593,16 @@ export default function SponsorsClient() {
                 <tr>
                   <td colSpan={9} className="p-8 text-center" style={{ color: "var(--app-muted)" }}>
                     جاري التحميل...
+                  </td>
+                </tr>
+              </tbody>
+            ) : loadError ? (
+              <tbody>
+                <tr>
+                  <td colSpan={9} className="p-8 text-center">
+                    <div className="mx-auto max-w-xl rounded-xl border p-4" style={{ borderColor: "var(--app-border)", color: "var(--app-muted)" }}>
+                      {loadError}
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -669,13 +772,15 @@ export default function SponsorsClient() {
                   إلغاء
                 </Button>
 
-                <Button
-                  type="submit"
-                  disabled={saving}
-                  style={{ backgroundColor: "var(--app-primary)", color: "white" }}
-                >
-                  {saving ? "جاري الحفظ..." : "حفظ"}
-                </Button>
+                {((form.id && can("sponsors.update")) || (!form.id && can("sponsors.create"))) && (
+                  <Button
+                    type="submit"
+                    disabled={saving}
+                    style={{ backgroundColor: "var(--app-primary)", color: "white" }}
+                  >
+                    {saving ? "جاري الحفظ..." : "حفظ"}
+                  </Button>
+                )}
               </div>
             </form>
           </div>
