@@ -6,28 +6,33 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Locale } from "@/constants/translations";
 
+type NavLabel = {
+  ar: string;
+  en: string;
+};
+
+type PermissionItem =
+  | string
+  | {
+      permission_code?: string;
+      allowed?: boolean;
+    };
+
 type NavItem = {
   href: string;
-  label: { ar: string; en: string };
+  label: NavLabel;
   /**
-   * إذا كانت الصلاحية غير محددة فالرابط يبقى عامًا.
-   * إذا كانت الصلاحية محددة فلا يظهر الرابط إلا إذا كانت الصلاحية allowed=true.
+   * إذا لم تُحدد صلاحية، يظهر الرابط دائمًا.
+   * إذا حُددت صلاحية واحدة أو أكثر، يظهر الرابط عند امتلاك أي واحدة منها.
    */
-  permission?: string;
+  permissions?: string[];
 };
 
 type NavGroup = {
-  title: { ar: string; en: string };
+  title: NavLabel;
   collapsible?: boolean;
   items: NavItem[];
 };
-
-type AuthMePermission =
-  | string
-  | {
-      permission_code?: string | null;
-      allowed?: boolean | null;
-    };
 
 const navGroups: NavGroup[] = [
   {
@@ -41,32 +46,32 @@ const navGroups: NavGroup[] = [
       {
         href: "/beneficiaries",
         label: { ar: "المستفيدون", en: "Beneficiaries" },
-        permission: "beneficiaries.view",
+        permissions: ["beneficiaries.view"],
       },
       {
         href: "/fathers",
         label: { ar: "الآباء", en: "Fathers" },
-        permission: "fathers.view",
+        permissions: ["fathers.view"],
       },
       {
         href: "/mothers",
         label: { ar: "الأمهات", en: "Mothers" },
-        permission: "mothers.view",
+        permissions: ["mothers.view"],
       },
       {
         href: "/guardians",
         label: { ar: "المعيلون", en: "Guardians" },
-        permission: "guardians.view",
+        permissions: ["guardians.view"],
       },
       {
         href: "/sponsors",
         label: { ar: "الجهات الكافلة / المانحة", en: "Sponsors" },
-        permission: "sponsors.view",
+        permissions: ["sponsors.view"],
       },
       {
         href: "/sponsorships",
         label: { ar: "الكفالات", en: "Sponsorships" },
-        permission: "sponsorships.view",
+        permissions: ["sponsorships.view"],
       },
     ],
   },
@@ -74,47 +79,50 @@ const navGroups: NavGroup[] = [
     title: { ar: "التهيئة والإعدادات", en: "Setup & Settings" },
     collapsible: true,
     items: [
-      /**
-       * روابط الوحدات التنظيمية تُترك بدون صلاحية حاليًا لأن صلاحياتها التفصيلية
-       * لم تُنشأ بعد ضمن جدول permissions، ولأنها مستخدمة كبيانات مرجعية في النظام.
-       */
-      { href: "/org/branches", label: { ar: "الفروع", en: "Branches" } },
-      { href: "/org/sites", label: { ar: "المواقع", en: "Sites" } },
-      { href: "/org/centers", label: { ar: "المراكز", en: "Centers" } },
-
+      {
+        href: "/org/branches",
+        label: { ar: "الفروع", en: "Branches" },
+        permissions: ["org.branches.view"],
+      },
+      {
+        href: "/org/sites",
+        label: { ar: "المواقع", en: "Sites" },
+        permissions: ["org.sites.view"],
+      },
+      {
+        href: "/org/centers",
+        label: { ar: "المراكز", en: "Centers" },
+        permissions: ["org.centers.view"],
+      },
       {
         href: "/users",
         label: { ar: "المستخدمون", en: "Users" },
-        permission: "users.view",
+        permissions: ["users.view"],
       },
       {
         href: "/roles",
         label: { ar: "الأدوار والصلاحيات", en: "Roles & Permissions" },
-        permission: "roles.view",
+        permissions: ["roles.view"],
       },
       {
         href: "/user-permissions",
-        label: {
-          ar: "صلاحيات المستخدمين المباشرة",
-          en: "User Permissions",
-        },
-        permission: "users.manage_permissions",
+        label: { ar: "صلاحيات المستخدمين المباشرة", en: "User Permissions" },
+        permissions: ["users.manage_permissions"],
+      },
+      {
+        href: "/audit-logs",
+        label: { ar: "سجل التغييرات", en: "Audit Logs" },
+        permissions: ["audit_logs.view"],
       },
       {
         href: "/audit-settings",
-        label: {
-          ar: "إعدادات سجل التغييرات",
-          en: "Audit Settings",
-        },
-        permission: "audit_settings.manage",
+        label: { ar: "إعدادات سجل التغييرات", en: "Audit Settings" },
+        permissions: ["audit_settings.manage"],
       },
       {
         href: "/duplicate-rules",
-        label: {
-          ar: "سياسات التكرار",
-          en: "Duplicate Rules",
-        },
-        permission: "duplicate_rules.manage",
+        label: { ar: "سياسات التكرار", en: "Duplicate Rules" },
+        permissions: ["duplicate_rules.manage"],
       },
       {
         href: "/database-constraint-messages",
@@ -122,16 +130,25 @@ const navGroups: NavGroup[] = [
           ar: "رسائل قيود قاعدة البيانات",
           en: "Database Constraint Messages",
         },
-        permission: "database_constraint_messages.manage",
+        permissions: ["database_constraint_messages.manage"],
       },
       {
         href: "/entity-definitions",
-        label: {
-          ar: "تعريفات الكيانات",
-          en: "Entity Definitions",
-        },
-        permission: "entity_definitions.manage",
+        label: { ar: "تعريفات الكيانات", en: "Entity Definitions" },
+        permissions: ["entity_definitions.manage"],
       },
+      /*
+      { href: "/lookups/governorates", label: { ar: "المحافظات", en: "Governorates" } },
+      { href: "/lookups/marital_status", label: { ar: "الحالات الاجتماعية", en: "Marital Status" } },
+      { href: "/lookups/death_reasons", label: { ar: "أسباب الوفاة", en: "Death Reasons" } },
+      { href: "/lookups/relationship_types", label: { ar: "أنواع القرابة", en: "Relationship Types" } },
+      { href: "/lookups/genders", label: { ar: "الجنس", en: "Genders" } },
+      { href: "/lookups/occupations", label: { ar: "المهن", en: "Occupations" } },
+      { href: "/lookups/nationalities", label: { ar: "الجنسيات", en: "Nationalities" } },
+      { href: "/lookups/education_levels", label: { ar: "المستويات التعليمية", en: "Education Levels" } },
+      { href: "/lookups/health_statuses", label: { ar: "الحالات الصحية", en: "Health Statuses" } },
+      { href: "/lookups/beneficiary_statuses", label: { ar: "حالات المستفيد", en: "Beneficiary Statuses" } },
+      */
     ],
   },
   {
@@ -141,32 +158,27 @@ const navGroups: NavGroup[] = [
       {
         href: "/lookups/types",
         label: { ar: "أنواع القوائم", en: "Lookup Types" },
-        permission: "lookups.manage",
+        permissions: ["lookups.manage"],
       },
       {
         href: "/lookups/values",
         label: { ar: "قيم القوائم", en: "Lookup Values" },
-        permission: "lookups.manage",
+        permissions: ["lookups.manage"],
       },
-      /**
-       * هذه الصفحات مرتبطة بإعدادات الحقول الديناميكية للمستفيدين.
-       * لا توجد لها صلاحيات مستقلة حتى الآن، لذلك نربطها مؤقتًا بصلاحية
-       * entity_definitions.manage باعتبارها جزءًا من الإعدادات الديناميكية.
-       */
       {
         href: "/beneficiary-fields/tabs",
         label: { ar: "تبويبات المستفيد", en: "Beneficiary Tabs" },
-        permission: "entity_definitions.manage",
+        permissions: ["entity_definitions.manage"],
       },
       {
         href: "/beneficiary-fields/groups",
         label: { ar: "مجموعات البيانات", en: "Field Groups" },
-        permission: "entity_definitions.manage",
+        permissions: ["entity_definitions.manage"],
       },
       {
         href: "/beneficiary-fields/fields",
         label: { ar: "الحقول الديناميكية", en: "Dynamic Fields" },
-        permission: "entity_definitions.manage",
+        permissions: ["entity_definitions.manage"],
       },
     ],
   },
@@ -177,109 +189,87 @@ const navGroups: NavGroup[] = [
       {
         href: "/theme",
         label: { ar: "إعدادات المظهر", en: "Theme Settings" },
-        permission: "theme.manage",
+        permissions: ["theme.manage"],
       },
     ],
   },
   {
     title: { ar: "التقارير والمتابعة", en: "Reports" },
     items: [
-      /**
-       * صفحة التقارير لم تكتمل صلاحياتها بعد، لذلك تُترك ظاهرة كما كانت.
-       * عند بناء وحدة التقارير نربطها بصلاحيات reports.*.
-       */
-      { href: "/reports", label: { ar: "التقارير", en: "Reports" } },
       {
-        href: "/audit-logs",
-        label: { ar: "سجل التغييرات", en: "Audit Logs" },
-        permission: "audit_logs.view",
+        href: "/reports",
+        label: { ar: "التقارير", en: "Reports" },
       },
     ],
   },
 ];
 
-function normalizePermissions(rawPermissions: AuthMePermission[]) {
-  const allowed = new Set<string>();
+function normalizePermissions(items: PermissionItem[] | undefined | null) {
+  if (!Array.isArray(items)) return [];
 
-  for (const permission of rawPermissions || []) {
-    if (typeof permission === "string") {
-      allowed.add(permission);
-      continue;
-    }
-
-    if (
-      permission &&
-      permission.permission_code &&
-      permission.allowed === true
-    ) {
-      allowed.add(permission.permission_code);
-    }
-  }
-
-  return allowed;
+  return items
+    .filter((item) => {
+      if (typeof item === "string") return true;
+      return item.allowed === true;
+    })
+    .map((item) => {
+      if (typeof item === "string") return item;
+      return item.permission_code || "";
+    })
+    .filter(Boolean);
 }
 
 export default function SidebarNav({ locale }: { locale: Locale }) {
   const pathname = usePathname();
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
-  const [permissions, setPermissions] = useState<Set<string>>(new Set());
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadPermissions() {
+    async function loadCurrentUserPermissions() {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
         const data = await res.json();
 
-        if (!cancelled && data?.success) {
-          setPermissions(normalizePermissions(data.data?.permissions || []));
-        }
+        if (cancelled) return;
 
-        if (!cancelled && !data?.success) {
-          setPermissions(new Set());
+        if (data.success) {
+          setPermissions(normalizePermissions(data.data?.permissions));
+          setIsSuperAdmin(Boolean(data.data?.user?.is_super_admin));
+        } else {
+          setPermissions([]);
+          setIsSuperAdmin(false);
         }
       } catch {
         if (!cancelled) {
-          setPermissions(new Set());
+          setPermissions([]);
+          setIsSuperAdmin(false);
         }
       } finally {
         if (!cancelled) {
-          setPermissionsLoaded(true);
+          setLoaded(true);
         }
       }
     }
 
-    loadPermissions();
+    loadCurrentUserPermissions();
 
     return () => {
       cancelled = true;
     };
   }, []);
 
-  function can(permissionCode?: string) {
-    if (!permissionCode) return true;
-    return permissions.has(permissionCode);
-  }
+  const permissionSet = useMemo(() => new Set(permissions), [permissions]);
 
-  const visibleGroups = useMemo(() => {
-    /**
-     * قبل اكتمال تحميل الصلاحيات نعرض فقط الروابط العامة حتى لا تظهر روابط
-     * محمية ثم تختفي بشكل مربك للمستخدم.
-     */
-    return navGroups
-      .map((group) => ({
-        ...group,
-        items: group.items.filter((item) => {
-          if (!item.permission) return true;
-          if (!permissionsLoaded) return false;
-          return can(item.permission);
-        }),
-      }))
-      .filter((group) => group.items.length > 0);
-  }, [permissions, permissionsLoaded]);
+  function canAny(requiredPermissions?: string[]) {
+    if (!requiredPermissions || requiredPermissions.length === 0) return true;
+    if (isSuperAdmin) return true;
+    return requiredPermissions.some((permission) => permissionSet.has(permission));
+  }
 
   function toggleGroup(key: string) {
     setOpenGroups((old) => ({
@@ -287,6 +277,19 @@ export default function SidebarNav({ locale }: { locale: Locale }) {
       [key]: !old[key],
     }));
   }
+
+  const visibleGroups = useMemo(() => {
+    // لا نعرض الروابط المقيدة قبل تحميل الصلاحيات حتى لا تظهر لحظة ثم تختفي.
+    // الروابط العامة فقط تظهر مباشرة.
+    return navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) =>
+          loaded ? canAny(item.permissions) : !item.permissions
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [loaded, permissionSet, isSuperAdmin]);
 
   return (
     <nav className="space-y-3">
@@ -362,9 +365,7 @@ export default function SidebarNav({ locale }: { locale: Locale }) {
 
             {group.items.map((item) => {
               const isActive =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(item.href);
+                item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 
               return (
                 <Link

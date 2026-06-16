@@ -1,5 +1,6 @@
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requirePermission("entity_definitions.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
     const { id, group, ...clean } = body;
@@ -65,6 +72,12 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const permission = await requirePermission("entity_definitions.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
     const { id, group, ...clean } = body;
