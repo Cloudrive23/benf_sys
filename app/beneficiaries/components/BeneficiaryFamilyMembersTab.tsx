@@ -19,6 +19,8 @@ export default function BeneficiaryFamilyMembersTab({
   const [relationships, setRelationships] = useState<any[]>([]);
   const [healthStatuses, setHealthStatuses] = useState<any[]>([]);
   const [educationStatuses, setEducationStatuses] = useState<any[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   const emptyForm = {
     id: "",
@@ -27,6 +29,7 @@ export default function BeneficiaryFamilyMembersTab({
     gender: "",
     birth_date: "",
     relationship_type: "",
+    relationship_lookup_id: "",
     identity_number: "",
     phone: "",
     education_status: "",
@@ -38,20 +41,54 @@ export default function BeneficiaryFamilyMembersTab({
 
   const [form, setForm] = useState<any>(emptyForm);
 
-  
-  async function loadLookups() {
-		  const [g, r, h, e] = await Promise.all([
-			fetch("/api/lookups?type=genders").then((x) => x.json()),
-			fetch("/api/lookups?type=relationship_types").then((x) => x.json()),
-			fetch("/api/lookups?type=health_statuses").then((x) => x.json()),
-			fetch("/api/lookups?type=education_statuses").then((x) => x.json()),
-		  ]);
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
 
-		  if (g.success) setGenders(g.data || []);
-		  if (r.success) setRelationships(r.data || []);
-		  if (h.success) setHealthStatuses(h.data || []);
-		  if (e.success) setEducationStatuses(e.data || []);
-		}
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+
+      if (!data.success) {
+        setPermissions([]);
+        return;
+      }
+
+      const loadedPermissions = data.data?.permissions || [];
+
+      const allowedPermissionCodes = loadedPermissions
+        .filter((permission: any) => {
+          if (typeof permission === "string") return true;
+          return permission?.allowed === true;
+        })
+        .map((permission: any) => {
+          if (typeof permission === "string") return permission;
+          return permission?.permission_code;
+        })
+        .filter(Boolean);
+
+      setPermissions(allowedPermissionCodes);
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
+
+  async function loadLookups() {
+    const [g, r, h, e] = await Promise.all([
+      fetch("/api/lookups?type=genders").then((x) => x.json()),
+      fetch("/api/lookups?type=relationship_types").then((x) => x.json()),
+      fetch("/api/lookups?type=health_statuses").then((x) => x.json()),
+      fetch("/api/lookups?type=education_statuses").then((x) => x.json()),
+    ]);
+
+    if (g.success) setGenders(g.data || []);
+    if (r.success) setRelationships(r.data || []);
+    if (h.success) setHealthStatuses(h.data || []);
+    if (e.success) setEducationStatuses(e.data || []);
+  }
 
   async function loadData() {
     if (!beneficiaryId) return;
@@ -69,11 +106,43 @@ export default function BeneficiaryFamilyMembersTab({
   }
 
   useEffect(() => {
-	  loadData();
-	  loadLookups();
-	}, [beneficiaryId]);
+    loadCurrentUserPermissions();
+    loadData();
+    loadLookups();
+  }, [beneficiaryId]);
+
+  async function openCreate() {
+    if (!can("beneficiaries.family.manage")) {
+      toast.error("ليس لديك صلاحية إدارة أفراد الأسرة");
+      return;
+    }
+
+    setForm({
+      ...emptyForm,
+      beneficiary_id: beneficiaryId,
+    });
+    setOpen(true);
+  }
+
+  function openEdit(item: any) {
+    if (!can("beneficiaries.family.manage")) {
+      toast.error("ليس لديك صلاحية إدارة أفراد الأسرة");
+      return;
+    }
+
+    setForm({
+      ...item,
+      birth_date: item.birth_date ? String(item.birth_date).slice(0, 10) : "",
+    });
+    setOpen(true);
+  }
 
   async function save() {
+    if (!can("beneficiaries.family.manage")) {
+      toast.error("ليس لديك صلاحية إدارة أفراد الأسرة");
+      return;
+    }
+
     if (!beneficiaryId) {
       toast.error("يجب حفظ المستفيد أولًا قبل إضافة أفراد الأسرة");
       return;
@@ -101,28 +170,34 @@ export default function BeneficiaryFamilyMembersTab({
     loadData();
   }
 
-	  async function remove(id: string) {
-		  if (!confirm("هل أنت متأكد من حذف هذا القريب؟")) {
-			return;
-		  }
+  async function remove(id: string) {
+    if (!can("beneficiaries.family.manage")) {
+      toast.error("ليس لديك صلاحية إدارة أفراد الأسرة");
+      return;
+    }
 
-		  const res = await fetch(
-			`/api/family-members?id=${id}`,
-			{
-			  method: "DELETE",
-			}
-		  );
+    if (!confirm("هل أنت متأكد من حذف هذا القريب؟")) {
+      return;
+    }
 
-		  const data = await res.json();
+    const res = await fetch(`/api/family-members?id=${id}`, {
+      method: "DELETE",
+    });
 
-		  if (!data.success) {
-			toast.error(data.message || "فشل الحذف");
-			return;
-		  }
+    const data = await res.json();
 
-		  toast.success("تم الحذف بنجاح");
-		  loadData();
-		}
+    if (!data.success) {
+      toast.error(data.message || "فشل الحذف");
+      return;
+    }
+
+    toast.success("تم الحذف بنجاح");
+    loadData();
+  }
+
+  const canManageFamilyMembers =
+    permissionsLoaded && can("beneficiaries.family.manage");
+
   return (
     <div className="space-y-4">
       {!beneficiaryId && (
@@ -132,22 +207,21 @@ export default function BeneficiaryFamilyMembersTab({
       )}
 
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold">أفراد الأسرة</h3>
+        <div>
+          <h3 className="text-lg font-bold">أفراد الأسرة</h3>
+          {!canManageFamilyMembers && permissionsLoaded && (
+            <p className="text-xs mt-1" style={{ color: "var(--app-muted)" }}>
+              لديك صلاحية عرض فقط لهذا التبويب.
+            </p>
+          )}
+        </div>
 
-        <Button
-          type="button"
-          disabled={!beneficiaryId}
-          onClick={() => {
-            setForm({
-              ...emptyForm,
-              beneficiary_id: beneficiaryId,
-            });
-            setOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4 ml-2" />
-          إضافة فرد
-        </Button>
+        {canManageFamilyMembers && (
+          <Button type="button" disabled={!beneficiaryId} onClick={openCreate}>
+            <Plus className="h-4 w-4 ml-2" />
+            إضافة فرد
+          </Button>
+        )}
       </div>
 
       <div className="rounded-xl border overflow-hidden max-w-full">
@@ -159,7 +233,9 @@ export default function BeneficiaryFamilyMembersTab({
                 <th className="p-3 text-right">صلة القرابة</th>
                 <th className="p-3 text-right">الجنس</th>
                 <th className="p-3 text-right">الهاتف</th>
-                <th className="p-3 text-right">الإجراءات</th>
+                {canManageFamilyMembers && (
+                  <th className="p-3 text-right">الإجراءات</th>
+                )}
               </tr>
             </thead>
 
@@ -168,50 +244,44 @@ export default function BeneficiaryFamilyMembersTab({
                 <tr key={item.id} className="border-b">
                   <td className="p-3">{item.full_name_ar}</td>
                   <td className="p-3">{item.relationship_type}</td>
-				  <td className="p-3">
-				  {
-					genders.find((g) => g.id === item.gender)?.name_ar
-					  || item.gender
-				  }
-				  </td>
-                  <td className="p-3">{item.phone}</td>
                   <td className="p-3">
-					  <div className="flex gap-2">
+                    {genders.find((g) => g.id === item.gender)?.name_ar ||
+                      item.gender}
+                  </td>
+                  <td className="p-3">{item.phone}</td>
 
-						<Button
-						  type="button"
-						  size="sm"
-						  variant="outline"
-						  onClick={() => {
-							setForm({
-							  ...item,
-							  birth_date: item.birth_date
-								? String(item.birth_date).slice(0, 10)
-								: "",
-							});
-							setOpen(true);
-						  }}
-						>
-						  <Pencil className="h-4 w-4" />
-						</Button>
+                  {canManageFamilyMembers && (
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEdit(item)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
 
-						<Button
-						  type="button"
-						  size="sm"
-						  variant="destructive"
-						  onClick={() => remove(item.id)}
-						>
-						  <Trash2 className="h-4 w-4" />
-						</Button>
-
-					  </div>
-					</td>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => remove(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
 
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-6 text-center opacity-70">
+                  <td
+                    colSpan={canManageFamilyMembers ? 5 : 4}
+                    className="p-6 text-center opacity-70"
+                  >
                     لا توجد بيانات أفراد أسرة
                   </td>
                 </tr>
@@ -240,40 +310,42 @@ export default function BeneficiaryFamilyMembersTab({
           <div>
             <label className="text-sm block mb-2">صلة القرابة</label>
             <select
-				  className="w-full rounded-md border bg-transparent p-2"
-				  value={form.relationship_lookup_id || ""}
-				  onChange={(e) => {
-					const selected = relationships.find((x) => x.id === e.target.value);
-					setForm({
-					  ...form,
-					  relationship_lookup_id: e.target.value,
-					  relationship_type: selected?.name_ar || "",
-					});
-				  }}
-				>
-				  <option value="">اختر صلة القرابة</option>
-				  {relationships.map((item) => (
-					<option key={item.id} value={item.id}>
-					  {item.name_ar}
-					</option>
-				  ))}
-				</select>
+              className="w-full rounded-md border bg-transparent p-2"
+              value={form.relationship_lookup_id || ""}
+              onChange={(e) => {
+                const selected = relationships.find(
+                  (x) => x.id === e.target.value
+                );
+                setForm({
+                  ...form,
+                  relationship_lookup_id: e.target.value,
+                  relationship_type: selected?.name_ar || "",
+                });
+              }}
+            >
+              <option value="">اختر صلة القرابة</option>
+              {relationships.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name_ar}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className="text-sm block mb-2">الجنس</label>
             <select
-				  className="w-full rounded-md border bg-transparent p-2"
-				  value={form.gender || ""}
-				  onChange={(e) => setForm({ ...form, gender: e.target.value })}
-				>
-				  <option value="">اختر الجنس</option>
-				  {genders.map((item) => (
-					<option key={item.id} value={item.id}>
-					  {item.name_ar}
-					</option>
-				  ))}
-			</select>
+              className="w-full rounded-md border bg-transparent p-2"
+              value={form.gender || ""}
+              onChange={(e) => setForm({ ...form, gender: e.target.value })}
+            >
+              <option value="">اختر الجنس</option>
+              {genders.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name_ar}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -301,51 +373,51 @@ export default function BeneficiaryFamilyMembersTab({
             <label className="text-sm block mb-2">الهاتف</label>
             <Input
               value={form.phone || ""}
-              onChange={(e) =>
-                setForm({ ...form, phone: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
             />
           </div>
 
           <div>
             <label className="text-sm block mb-2">الحالة التعليمية</label>
             <select
-				  className="w-full rounded-md border bg-transparent p-2"
-				  value={form.education_status || ""}
-				  onChange={(e) => setForm({ ...form, education_status: e.target.value })}
-				>
-				  <option value="">اختر الحالة التعليمية</option>
-				  {educationStatuses.map((item) => (
-					<option key={item.id} value={item.id}>
-					  {item.name_ar}
-					</option>
-				  ))}
-				</select>
+              className="w-full rounded-md border bg-transparent p-2"
+              value={form.education_status || ""}
+              onChange={(e) =>
+                setForm({ ...form, education_status: e.target.value })
+              }
+            >
+              <option value="">اختر الحالة التعليمية</option>
+              {educationStatuses.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name_ar}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className="text-sm block mb-2">الحالة الصحية</label>
             <select
-				  className="w-full rounded-md border bg-transparent p-2"
-				  value={form.health_status || ""}
-				  onChange={(e) => setForm({ ...form, health_status: e.target.value })}
-				>
-				  <option value="">اختر الحالة الصحية</option>
-				  {healthStatuses.map((item) => (
-					<option key={item.id} value={item.id}>
-					  {item.name_ar}
-					</option>
-				  ))}
-				</select>
+              className="w-full rounded-md border bg-transparent p-2"
+              value={form.health_status || ""}
+              onChange={(e) =>
+                setForm({ ...form, health_status: e.target.value })
+              }
+            >
+              <option value="">اختر الحالة الصحية</option>
+              {healthStatuses.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name_ar}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="sm:col-span-2">
             <label className="text-sm block mb-2">ملاحظات</label>
             <Input
               value={form.notes || ""}
-              onChange={(e) =>
-                setForm({ ...form, notes: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
           </div>
 
@@ -361,11 +433,13 @@ export default function BeneficiaryFamilyMembersTab({
           </label>
         </div>
 
-        <div className="flex justify-end mt-6">
-          <Button type="button" onClick={save}>
-            حفظ
-          </Button>
-        </div>
+        {canManageFamilyMembers && (
+          <div className="flex justify-end mt-6">
+            <Button type="button" onClick={save}>
+              حفظ
+            </Button>
+          </div>
+        )}
       </BaseModal>
     </div>
   );

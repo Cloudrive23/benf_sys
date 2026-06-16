@@ -1,23 +1,66 @@
-export default function NewUserPage() {
+import AppLayout from "@/app/components/AppLayout";
+import { requirePermission } from "@/lib/permissions";
+
+export const dynamic = "force-dynamic";
+
+function AccessDenied() {
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-10">
-      <h1 className="text-4xl font-bold mb-8">Add New User</h1>
+    <div
+      className="rounded-2xl border p-8 text-center space-y-3"
+      style={{
+        backgroundColor: "var(--app-surface)",
+        borderColor: "var(--app-border)",
+      }}
+    >
+      <h1 className="text-2xl font-bold">ليس لديك صلاحية إضافة مستخدم</h1>
+      <p className="text-sm" style={{ color: "var(--app-muted)" }}>
+        يلزم توفر الصلاحية users.create للوصول إلى هذه الشاشة.
+      </p>
+    </div>
+  );
+}
 
-      <form
-        action="/api/users"
-        method="post"
-        className="max-w-xl bg-gray-900 p-8 rounded-2xl border border-gray-800 space-y-5"
-      >
-        <input name="username" placeholder="Username" className="w-full p-3 rounded bg-gray-800" required />
-        <input name="full_name" placeholder="Full Name" className="w-full p-3 rounded bg-gray-800" required />
-        <input name="email" placeholder="Email" className="w-full p-3 rounded bg-gray-800" />
-        <input name="phone" placeholder="Phone" className="w-full p-3 rounded bg-gray-800" />
-        <input name="password" placeholder="Password" type="password" className="w-full p-3 rounded bg-gray-800" />
+export default async function NewUserPage() {
+  const permission = await requirePermission("users.create");
 
-        <button className="bg-blue-600 px-5 py-3 rounded-xl">
-          Save User
-        </button>
-      </form>
-    </main>
+  if (!permission.ok) {
+    return (
+      <AppLayout>
+        <AccessDenied />
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout>
+      <div className="space-y-6" dir="rtl">
+        <div>
+          <h1 className="text-3xl font-bold">إضافة مستخدم</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--app-muted)" }}>
+            إنشاء حساب مستخدم جديد للنظام.
+          </p>
+        </div>
+
+        <form
+          action="/api/users"
+          method="post"
+          className="max-w-xl rounded-2xl border p-8 space-y-5"
+          style={{
+            backgroundColor: "var(--app-surface)",
+            borderColor: "var(--app-border)",
+          }}
+        >
+          <input name="username" placeholder="اسم المستخدم" className="w-full p-3 rounded bg-transparent border" required />
+          <input name="full_name" placeholder="الاسم الكامل" className="w-full p-3 rounded bg-transparent border" required />
+          <input name="email" placeholder="البريد الإلكتروني" className="w-full p-3 rounded bg-transparent border" />
+          <input name="phone" placeholder="الهاتف" className="w-full p-3 rounded bg-transparent border" />
+          <input name="password" placeholder="كلمة المرور" type="password" className="w-full p-3 rounded bg-transparent border" />
+
+          <button className="px-5 py-3 rounded-xl" style={{ backgroundColor: "var(--app-primary)", color: "white" }}>
+            حفظ المستخدم
+          </button>
+        </form>
+      </div>
+    </AppLayout>
   );
 }

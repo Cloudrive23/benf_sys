@@ -1,6 +1,10 @@
+import { NextResponse } from "next/server";
+
 import { prisma } from "@/app/lib/prisma";
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
+import { getCurrentUserRecord } from "@/lib/auth";
+import { hasPermission, requirePermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +45,52 @@ function buildValueData(field: any, value: any) {
   return base;
 }
 
+async function requireAnyPermission(permissionCodes: string[]) {
+  const user = await getCurrentUserRecord();
+
+  if (!user) {
+    return {
+      ok: false,
+      user: null,
+      response: NextResponse.json(
+        { success: false, message: "غير مصرح، يرجى تسجيل الدخول" },
+        { status: 401 }
+      ),
+    };
+  }
+
+  for (const permissionCode of permissionCodes) {
+    const allowed = await hasPermission(user.id, permissionCode);
+
+    if (allowed) {
+      return {
+        ok: true,
+        user,
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    user,
+    response: NextResponse.json(
+      { success: false, message: "ليست لديك الصلاحية المطلوبة" },
+      { status: 403 }
+    ),
+  };
+}
+
 export async function GET(request: Request) {
   try {
+    const permission = await requireAnyPermission([
+      "beneficiaries.view",
+      "beneficiaries.dynamic.update",
+    ]);
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const { searchParams } = new URL(request.url);
     const beneficiaryId = searchParams.get("beneficiary_id");
 
@@ -79,6 +127,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requirePermission("beneficiaries.dynamic.update");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
     const beneficiaryId = body.beneficiary_id;

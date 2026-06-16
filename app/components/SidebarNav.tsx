@@ -3,10 +3,33 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Locale } from "@/constants/translations";
 
-const navGroups = [
+type NavItem = {
+  href: string;
+  label: { ar: string; en: string };
+  /**
+   * إذا كانت الصلاحية غير محددة فالرابط يبقى عامًا.
+   * إذا كانت الصلاحية محددة فلا يظهر الرابط إلا إذا كانت الصلاحية allowed=true.
+   */
+  permission?: string;
+};
+
+type NavGroup = {
+  title: { ar: string; en: string };
+  collapsible?: boolean;
+  items: NavItem[];
+};
+
+type AuthMePermission =
+  | string
+  | {
+      permission_code?: string | null;
+      allowed?: boolean | null;
+    };
+
+const navGroups: NavGroup[] = [
   {
     title: { ar: "الرئيسية", en: "Main" },
     items: [{ href: "/", label: { ar: "لوحة التحكم", en: "Dashboard" } }],
@@ -14,82 +37,249 @@ const navGroups = [
   {
     title: { ar: "إدارة المستفيدين", en: "Beneficiaries" },
     collapsible: true,
-		items: [
-		  {
-			href: "/beneficiaries",
-			label: { ar: "المستفيدون", en: "Beneficiaries" },
-		  },
-		  {
-			href: "/fathers",
-			label: { ar: "الآباء", en: "Fathers" },
-		  },
-		  {
-			href: "/mothers",
-			label: { ar: "الأمهات", en: "Mothers" },
-		  },
-		  {
-			href: "/guardians",
-			label: { ar: "المعيلون", en: "Guardians" },
-		  },
-		],
+    items: [
+      {
+        href: "/beneficiaries",
+        label: { ar: "المستفيدون", en: "Beneficiaries" },
+        permission: "beneficiaries.view",
+      },
+      {
+        href: "/fathers",
+        label: { ar: "الآباء", en: "Fathers" },
+        permission: "fathers.view",
+      },
+      {
+        href: "/mothers",
+        label: { ar: "الأمهات", en: "Mothers" },
+        permission: "mothers.view",
+      },
+      {
+        href: "/guardians",
+        label: { ar: "المعيلون", en: "Guardians" },
+        permission: "guardians.view",
+      },
+      {
+        href: "/sponsors",
+        label: { ar: "الجهات الكافلة / المانحة", en: "Sponsors" },
+        permission: "sponsors.view",
+      },
+      {
+        href: "/sponsorships",
+        label: { ar: "الكفالات", en: "Sponsorships" },
+        permission: "sponsorships.view",
+      },
+    ],
   },
   {
     title: { ar: "التهيئة والإعدادات", en: "Setup & Settings" },
     collapsible: true,
     items: [
+      /**
+       * روابط الوحدات التنظيمية تُترك بدون صلاحية حاليًا لأن صلاحياتها التفصيلية
+       * لم تُنشأ بعد ضمن جدول permissions، ولأنها مستخدمة كبيانات مرجعية في النظام.
+       */
       { href: "/org/branches", label: { ar: "الفروع", en: "Branches" } },
       { href: "/org/sites", label: { ar: "المواقع", en: "Sites" } },
       { href: "/org/centers", label: { ar: "المراكز", en: "Centers" } },
-      { href: "/users", label: { ar: "المستخدمون", en: "Users" } },
-      { href: "/roles", label: { ar: "الأدوار والصلاحيات", en: "Roles & Permissions" } },
-      { href: "/user-permissions", label: { ar: "صلاحيات المستخدمين المباشرة", en: "User Permissions" } },
-	  {href: "/audit-settings",label: {ar: "إعدادات سجل التغييرات",en: "Audit Settings",},},
-	  {href: "/duplicate-rules",label: {ar: "سياسات التكرار",en: "Duplicate Rules",},},
-	  {href: "/database-constraint-messages",label: {ar: "رسائل قيود قاعدة البيانات",en: "Database Constraint Messages",},},
-	  {href: "/entity-definitions",label: {ar: "تعريفات الكيانات",en: "Entity Definitions",},},
-	  /*{href: "/lookups/governorates",label: {ar: "المحافظات",en: "Governorates",},},
-	  {href: "/lookups/marital_status",label: {ar: "الحالات الاجتماعية",en: "Marital Status",},},
-	  {href: "/lookups/death_reasons",label: {ar: "أسباب الوفاة",en: "Death Reasons",},},
-	  {href: "/lookups/relationship_types",label: {ar: "أنواع القرابة",en: "Relationship Types",},},
-	  {href: "/lookups/genders",label: { ar: "الجنس", en: "Genders" },},
-	  {href: "/lookups/occupations",label: { ar: "المهن", en: "Occupations" },},
-	  {href: "/lookups/nationalities",label: { ar: "الجنسيات", en: "Nationalities" },},
-	  {href: "/lookups/education_levels",label: { ar: "المستويات التعليمية", en: "Education Levels" },},
-	  {href: "/lookups/health_statuses",label: { ar: "الحالات الصحية", en: "Health Statuses" },},
-	  {href: "/lookups/beneficiary_statuses",label: { ar: "حالات المستفيد", en: "Beneficiary Statuses" },},
-	  */
+
+      {
+        href: "/users",
+        label: { ar: "المستخدمون", en: "Users" },
+        permission: "users.view",
+      },
+      {
+        href: "/roles",
+        label: { ar: "الأدوار والصلاحيات", en: "Roles & Permissions" },
+        permission: "roles.view",
+      },
+      {
+        href: "/user-permissions",
+        label: {
+          ar: "صلاحيات المستخدمين المباشرة",
+          en: "User Permissions",
+        },
+        permission: "users.manage_permissions",
+      },
+      {
+        href: "/audit-settings",
+        label: {
+          ar: "إعدادات سجل التغييرات",
+          en: "Audit Settings",
+        },
+        permission: "audit_settings.manage",
+      },
+      {
+        href: "/duplicate-rules",
+        label: {
+          ar: "سياسات التكرار",
+          en: "Duplicate Rules",
+        },
+        permission: "duplicate_rules.manage",
+      },
+      {
+        href: "/database-constraint-messages",
+        label: {
+          ar: "رسائل قيود قاعدة البيانات",
+          en: "Database Constraint Messages",
+        },
+        permission: "database_constraint_messages.manage",
+      },
+      {
+        href: "/entity-definitions",
+        label: {
+          ar: "تعريفات الكيانات",
+          en: "Entity Definitions",
+        },
+        permission: "entity_definitions.manage",
+      },
     ],
   },
-  
-	  {
-		title: { ar: "القوائم والديناميكية", en: "Dynamic Setup" },
-		  collapsible: true,
-		  items: [
-			{ href: "/lookups/types", label: { ar: "أنواع القوائم", en: "Lookup Types" } },
-			{ href: "/lookups/values", label: { ar: "قيم القوائم", en: "Lookup Values" } },
-			{ href: "/beneficiary-fields/tabs", label: { ar: "تبويبات المستفيد", en: "Beneficiary Tabs" } },
-			{ href: "/beneficiary-fields/groups", label: { ar: "مجموعات البيانات", en: "Field Groups" } },
-			{ href: "/beneficiary-fields/fields", label: { ar: "الحقول الديناميكية", en: "Dynamic Fields" } },
-		  ],
-		},
   {
-	title: { ar: " المظهر والواجهة ", en: "Appearance" },
+    title: { ar: "القوائم والديناميكية", en: "Dynamic Setup" },
     collapsible: true,
     items: [
-      { href: "/theme", label: { ar: "اعدادات المظهر", en: "theme settings" } },  
-	  ],
+      {
+        href: "/lookups/types",
+        label: { ar: "أنواع القوائم", en: "Lookup Types" },
+        permission: "lookups.manage",
+      },
+      {
+        href: "/lookups/values",
+        label: { ar: "قيم القوائم", en: "Lookup Values" },
+        permission: "lookups.manage",
+      },
+      /**
+       * هذه الصفحات مرتبطة بإعدادات الحقول الديناميكية للمستفيدين.
+       * لا توجد لها صلاحيات مستقلة حتى الآن، لذلك نربطها مؤقتًا بصلاحية
+       * entity_definitions.manage باعتبارها جزءًا من الإعدادات الديناميكية.
+       */
+      {
+        href: "/beneficiary-fields/tabs",
+        label: { ar: "تبويبات المستفيد", en: "Beneficiary Tabs" },
+        permission: "entity_definitions.manage",
+      },
+      {
+        href: "/beneficiary-fields/groups",
+        label: { ar: "مجموعات البيانات", en: "Field Groups" },
+        permission: "entity_definitions.manage",
+      },
+      {
+        href: "/beneficiary-fields/fields",
+        label: { ar: "الحقول الديناميكية", en: "Dynamic Fields" },
+        permission: "entity_definitions.manage",
+      },
+    ],
   },
-	  
+  {
+    title: { ar: "المظهر والواجهة", en: "Appearance" },
+    collapsible: true,
+    items: [
+      {
+        href: "/theme",
+        label: { ar: "إعدادات المظهر", en: "Theme Settings" },
+        permission: "theme.manage",
+      },
+    ],
+  },
   {
     title: { ar: "التقارير والمتابعة", en: "Reports" },
-    items: [{ href: "/reports", label: { ar: "التقارير", en: "Reports" } }],
+    items: [
+      /**
+       * صفحة التقارير لم تكتمل صلاحياتها بعد، لذلك تُترك ظاهرة كما كانت.
+       * عند بناء وحدة التقارير نربطها بصلاحيات reports.*.
+       */
+      { href: "/reports", label: { ar: "التقارير", en: "Reports" } },
+      {
+        href: "/audit-logs",
+        label: { ar: "سجل التغييرات", en: "Audit Logs" },
+        permission: "audit_logs.view",
+      },
+    ],
   },
 ];
+
+function normalizePermissions(rawPermissions: AuthMePermission[]) {
+  const allowed = new Set<string>();
+
+  for (const permission of rawPermissions || []) {
+    if (typeof permission === "string") {
+      allowed.add(permission);
+      continue;
+    }
+
+    if (
+      permission &&
+      permission.permission_code &&
+      permission.allowed === true
+    ) {
+      allowed.add(permission.permission_code);
+    }
+  }
+
+  return allowed;
+}
 
 export default function SidebarNav({ locale }: { locale: Locale }) {
   const pathname = usePathname();
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [permissions, setPermissions] = useState<Set<string>>(new Set());
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPermissions() {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        const data = await res.json();
+
+        if (!cancelled && data?.success) {
+          setPermissions(normalizePermissions(data.data?.permissions || []));
+        }
+
+        if (!cancelled && !data?.success) {
+          setPermissions(new Set());
+        }
+      } catch {
+        if (!cancelled) {
+          setPermissions(new Set());
+        }
+      } finally {
+        if (!cancelled) {
+          setPermissionsLoaded(true);
+        }
+      }
+    }
+
+    loadPermissions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function can(permissionCode?: string) {
+    if (!permissionCode) return true;
+    return permissions.has(permissionCode);
+  }
+
+  const visibleGroups = useMemo(() => {
+    /**
+     * قبل اكتمال تحميل الصلاحيات نعرض فقط الروابط العامة حتى لا تظهر روابط
+     * محمية ثم تختفي بشكل مربك للمستخدم.
+     */
+    return navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+          if (!item.permission) return true;
+          if (!permissionsLoaded) return false;
+          return can(item.permission);
+        }),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [permissions, permissionsLoaded]);
 
   function toggleGroup(key: string) {
     setOpenGroups((old) => ({
@@ -100,7 +290,7 @@ export default function SidebarNav({ locale }: { locale: Locale }) {
 
   return (
     <nav className="space-y-3">
-      {navGroups.map((group) => {
+      {visibleGroups.map((group) => {
         const key = group.title.en;
         const isOpen = openGroups[key] || false;
 
@@ -116,7 +306,9 @@ export default function SidebarNav({ locale }: { locale: Locale }) {
                 onClick={() => toggleGroup(key)}
                 className="w-full flex items-center justify-between rounded-xl px-4 py-3 transition-all"
                 style={{
-                  backgroundColor: hasActiveChild ? "var(--app-primary)" : "transparent",
+                  backgroundColor: hasActiveChild
+                    ? "var(--app-primary)"
+                    : "transparent",
                   color: "var(--app-text)",
                 }}
               >

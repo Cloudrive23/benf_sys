@@ -73,7 +73,7 @@ const emptyForm = {
 };
 
 function fieldClass() {
-  return "w-full rounded-md border bg-transparent p-2 text-[var(--app-text)]";
+  return "w-full rounded-md border bg-transparent p-2 text-[var(--app-text)] placeholder:text-[var(--app-muted)]";
 }
 
 function extractData(payload: any) {
@@ -128,6 +128,35 @@ export default function RolesClient() {
   const [savingRole, setSavingRole] = useState(false);
   const [savingPermissions, setSavingPermissions] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const payload = await res.json();
+
+      if (!res.ok || payload.success === false) {
+        setPermissions([]);
+        return;
+      }
+
+      const effectivePermissions = payload.data?.permissions || [];
+      setPermissions(
+        effectivePermissions
+          .filter((permission: any) => permission.allowed === true)
+          .map((permission: any) => permission.permission_code)
+      );
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
 
   const selectedRole = useMemo(
     () => roles.find((role) => role.id === selectedRoleId) || null,
@@ -197,6 +226,7 @@ export default function RolesClient() {
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -230,6 +260,13 @@ export default function RolesClient() {
 
   async function saveRole(event: FormEvent) {
     event.preventDefault();
+
+    const requiredPermission = form.id ? "roles.update" : "roles.create";
+    if (!can(requiredPermission)) {
+      toast.error("ليس لديك صلاحية حفظ بيانات الدور");
+      return;
+    }
+
     setSavingRole(true);
 
     try {
@@ -262,6 +299,11 @@ export default function RolesClient() {
   }
 
   async function disableRole(role: Role) {
+    if (!can("roles.delete")) {
+      toast.error("ليس لديك صلاحية تعطيل الأدوار");
+      return;
+    }
+
     if (role.role_code === "system_admin") {
       toast.error("لا يمكن تعطيل دور مدير النظام");
       return;
@@ -286,6 +328,8 @@ export default function RolesClient() {
   }
 
   function togglePermission(permissionId: string) {
+    if (!can("roles.manage_permissions")) return;
+
     setPermissionIds((old) => {
       const next = new Set(old);
       if (next.has(permissionId)) {
@@ -298,6 +342,8 @@ export default function RolesClient() {
   }
 
   function selectModulePermissions(module: Module, checked: boolean) {
+    if (!can("roles.manage_permissions")) return;
+
     setPermissionIds((old) => {
       const next = new Set(old);
       for (const permission of module.permissions || []) {
@@ -309,6 +355,11 @@ export default function RolesClient() {
   }
 
   async function savePermissions() {
+    if (!can("roles.manage_permissions")) {
+      toast.error("ليس لديك صلاحية إدارة صلاحيات الدور");
+      return;
+    }
+
     if (!selectedRole) {
       toast.error("اختر دورًا أولًا");
       return;
@@ -342,6 +393,11 @@ export default function RolesClient() {
   }
 
   async function addUserToRole() {
+    if (!can("roles.manage_users")) {
+      toast.error("ليس لديك صلاحية إدارة مستخدمي الدور");
+      return;
+    }
+
     if (!selectedRole) {
       toast.error("اختر دورًا أولًا");
       return;
@@ -380,6 +436,11 @@ export default function RolesClient() {
   }
 
   async function removeUserFromRole(userId: string) {
+    if (!can("roles.manage_users")) {
+      toast.error("ليس لديك صلاحية إدارة مستخدمي الدور");
+      return;
+    }
+
     if (!selectedRole) return;
 
     if (!confirm("هل تريد إزالة هذا المستخدم من الدور؟")) return;
@@ -419,23 +480,25 @@ export default function RolesClient() {
             <Shield className="h-6 w-6" />
             الأدوار والصلاحيات
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-[var(--app-muted)] mt-1">
             إدارة المجموعات، صلاحيات كل مجموعة، والمستخدمين داخل كل مجموعة.
           </p>
         </div>
 
-        <Button type="button" onClick={clearForm}>
-          <Plus className="h-4 w-4 ml-2" />
-          دور جديد
-        </Button>
+        {can("roles.create") && (
+          <Button type="button" onClick={clearForm}>
+            <Plus className="h-4 w-4 ml-2" />
+            دور جديد
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="rounded-xl border bg-[var(--app-surface)] p-4 space-y-4 xl:col-span-1">
           <div className="relative">
-            <Search className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+            <Search className="absolute right-3 top-3 h-4 w-4 text-[var(--app-muted)]" />
             <Input
-              className="pr-9 bg-transparent text-[var(--app-text)] placeholder:text-[var(--app-muted)]"
+              className="pr-9"
               placeholder="بحث في الأدوار..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -444,9 +507,9 @@ export default function RolesClient() {
 
           <div className="space-y-2 max-h-[720px] overflow-auto pr-1">
             {loading ? (
-              <div className="text-sm text-gray-500 p-4">جاري التحميل...</div>
+              <div className="text-sm text-[var(--app-muted)] p-4">جاري التحميل...</div>
             ) : filteredRoles.length === 0 ? (
-              <div className="text-sm text-gray-500 p-4">لا توجد أدوار</div>
+              <div className="text-sm text-[var(--app-muted)] p-4">لا توجد أدوار</div>
             ) : (
               filteredRoles.map((role) => {
                 const active = selectedRoleId === role.id;
@@ -457,13 +520,13 @@ export default function RolesClient() {
                     type="button"
                     onClick={() => selectRole(role)}
                     className={`w-full rounded-xl border p-4 text-right transition ${
-                      active ? "border-blue-500 bg-blue-500/10" : "hover:bg-black/5"
+                      active ? "border-blue-500 bg-[var(--app-surface)]/10" : "hover:bg-[var(--app-surface)]/10"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="font-semibold">{role.role_name_ar}</div>
-                        <div className="text-xs text-gray-500 ltr:text-left" dir="ltr">
+                        <div className="text-xs text-[var(--app-muted)] ltr:text-left" dir="ltr">
                           {role.role_code}
                         </div>
                       </div>
@@ -473,11 +536,11 @@ export default function RolesClient() {
                       </Badge>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
-                      <span className="rounded-full bg-black/5 px-2 py-1">
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--app-muted)]">
+                      <span className="rounded-full bg-[var(--app-surface)]/10 px-2 py-1">
                         {role._count?.role_permissions || role.role_permissions?.length || 0} صلاحية
                       </span>
-                      <span className="rounded-full bg-black/5 px-2 py-1">
+                      <span className="rounded-full bg-[var(--app-surface)]/10 px-2 py-1">
                         {role._count?.user_roles || role.user_roles?.length || 0} مستخدم
                       </span>
                     </div>
@@ -497,7 +560,7 @@ export default function RolesClient() {
                   type="button"
                   variant="destructive"
                   onClick={() => disableRole(selectedRole)}
-                  disabled={selectedRole.role_code === "system_admin"}
+                  disabled={selectedRole.role_code === "system_admin" || !can("roles.delete")}
                 >
                   <Trash2 className="h-4 w-4 ml-2" />
                   تعطيل الدور
@@ -567,10 +630,12 @@ export default function RolesClient() {
             </label>
 
             <div className="flex justify-end">
-              <Button type="submit" disabled={savingRole}>
-                <Save className="h-4 w-4 ml-2" />
-                {savingRole ? "جاري الحفظ..." : "حفظ بيانات الدور"}
-              </Button>
+              {((form.id && can("roles.update")) || (!form.id && can("roles.create"))) && (
+                <Button type="submit" disabled={savingRole}>
+                  <Save className="h-4 w-4 ml-2" />
+                  {savingRole ? "جاري الحفظ..." : "حفظ بيانات الدور"}
+                </Button>
+              )}
             </div>
           </form>
 
@@ -581,19 +646,24 @@ export default function RolesClient() {
                   <KeyRound className="h-5 w-5" />
                   صلاحيات الدور
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[var(--app-muted)]">
                   المحدد: {permissionIds.size} من {totalPermissions} صلاحية
                 </p>
+                {!can("roles.manage_permissions") && (
+                  <p className="text-xs text-amber-600 mt-1">لديك صلاحية عرض فقط، ولا يمكنك تعديل صلاحيات الدور.</p>
+                )}
               </div>
 
-              <Button type="button" onClick={savePermissions} disabled={!selectedRole || savingPermissions}>
-                <Check className="h-4 w-4 ml-2" />
-                {savingPermissions ? "جاري الحفظ..." : "حفظ الصلاحيات"}
-              </Button>
+              {can("roles.manage_permissions") && (
+                <Button type="button" onClick={savePermissions} disabled={!selectedRole || savingPermissions}>
+                  <Check className="h-4 w-4 ml-2" />
+                  {savingPermissions ? "جاري الحفظ..." : "حفظ الصلاحيات"}
+                </Button>
+              )}
             </div>
 
             {!selectedRole ? (
-              <div className="rounded-lg border border-dashed p-6 text-center text-gray-500">
+              <div className="rounded-lg border border-dashed p-6 text-center text-[var(--app-muted)]">
                 اختر دورًا أو أنشئ دورًا جديدًا أولًا.
               </div>
             ) : (
@@ -610,7 +680,7 @@ export default function RolesClient() {
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div>
                           <div className="font-semibold">{module.module_name_ar}</div>
-                          <div className="text-xs text-gray-500" dir="ltr">
+                          <div className="text-xs text-[var(--app-muted)]" dir="ltr">
                             {module.module_code} — {module.route_path || ""}
                           </div>
                         </div>
@@ -619,6 +689,7 @@ export default function RolesClient() {
                           <input
                             type="checkbox"
                             checked={allSelected}
+                            disabled={!can("roles.manage_permissions")}
                             onChange={(event) => selectModulePermissions(module, event.target.checked)}
                           />
                           تحديد كل صلاحيات الوحدة ({selectedCount}/{modulePermissionIds.length})
@@ -629,17 +700,18 @@ export default function RolesClient() {
                         {module.permissions.map((permission) => (
                           <label
                             key={permission.id}
-                            className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-black/5"
+                            className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-[var(--app-surface)]/10"
                           >
                             <input
                               type="checkbox"
                               className="mt-1"
                               checked={permissionIds.has(permission.id)}
+                              disabled={!can("roles.manage_permissions")}
                               onChange={() => togglePermission(permission.id)}
                             />
                             <span className="space-y-1">
                               <span className="block font-medium text-sm">{permission.permission_name_ar}</span>
-                              <span className="block text-xs text-gray-500" dir="ltr">
+                              <span className="block text-xs text-[var(--app-muted)]" dir="ltr">
                                 {permission.permission_code}
                               </span>
                               <Badge variant="outline">{actionLabel(permission.action_code)}</Badge>
@@ -660,13 +732,16 @@ export default function RolesClient() {
                 <Users className="h-5 w-5" />
                 مستخدمو الدور
               </h2>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-[var(--app-muted)]">
                 إضافة أو إزالة المستخدمين داخل المجموعة/الدور المحدد.
               </p>
+              {!can("roles.manage_users") && (
+                <p className="text-xs text-amber-600 mt-1">لديك صلاحية عرض فقط، ولا يمكنك تعديل مستخدمي الدور.</p>
+              )}
             </div>
 
             {!selectedRole ? (
-              <div className="rounded-lg border border-dashed p-6 text-center text-gray-500">
+              <div className="rounded-lg border border-dashed p-6 text-center text-[var(--app-muted)]">
                 اختر دورًا أولًا لإدارة مستخدميه.
               </div>
             ) : (
@@ -685,7 +760,7 @@ export default function RolesClient() {
                     ))}
                   </select>
 
-                  <Button type="button" onClick={addUserToRole} disabled={savingUser || !selectedUserId}>
+                  <Button type="button" onClick={addUserToRole} disabled={savingUser || !selectedUserId || !can("roles.manage_users")}>
                     <UserPlus className="h-4 w-4 ml-2" />
                     إضافة للدور
                   </Button>
@@ -693,7 +768,7 @@ export default function RolesClient() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {roleUsers.length === 0 ? (
-                    <div className="text-sm text-gray-500">لا يوجد مستخدمون في هذا الدور.</div>
+                    <div className="text-sm text-[var(--app-muted)]">لا يوجد مستخدمون في هذا الدور.</div>
                   ) : (
                     roleUsers.map((item) => {
                       const user = item.users;
@@ -703,7 +778,7 @@ export default function RolesClient() {
                         <div key={item.user_id} className="rounded-lg border p-3 flex items-center justify-between gap-3">
                           <div>
                             <div className="font-medium">{user.full_name}</div>
-                            <div className="text-xs text-gray-500" dir="ltr">
+                            <div className="text-xs text-[var(--app-muted)]" dir="ltr">
                               {user.username} {user.email ? `— ${user.email}` : ""}
                             </div>
                           </div>
@@ -713,7 +788,7 @@ export default function RolesClient() {
                             variant="destructive"
                             size="sm"
                             onClick={() => removeUserFromRole(item.user_id)}
-                            disabled={savingUser}
+                            disabled={savingUser || !can("roles.manage_users")}
                           >
                             إزالة
                           </Button>

@@ -71,6 +71,45 @@ export default function GuardiansClient() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  function normalizePermissions(rawPermissions: any): string[] {
+    if (!Array.isArray(rawPermissions)) return [];
+
+    return rawPermissions
+      .filter((permission) => {
+        if (typeof permission === "string") return true;
+        return permission?.allowed === true;
+      })
+      .map((permission) =>
+        typeof permission === "string" ? permission : permission?.permission_code
+      )
+      .filter(Boolean);
+  }
+
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+
+      if (data.success) {
+        setPermissions(normalizePermissions(data.data?.permissions || []));
+      } else {
+        setPermissions([]);
+      }
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
+
+
   async function load() {
     const res = await fetch("/api/guardians", {
       cache: "no-store",
@@ -101,6 +140,7 @@ export default function GuardiansClient() {
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
   }, []);
 
@@ -118,12 +158,22 @@ export default function GuardiansClient() {
   }, [items, search]);
 
   async function openCreate() {
+    if (!can("guardians.create")) {
+      toast.error("ليس لديك صلاحية إضافة المعيل");
+      return;
+    }
+
     setForm(emptyForm);
     setOpen(true);
     await loadNextCode();
   }
 
   function openEdit(item: Guardian) {
+    if (!can("guardians.update")) {
+      toast.error("ليس لديك صلاحية تعديل بيانات المعيل");
+      return;
+    }
+
     setForm({
       id: item.id,
       guardian_code: item.guardian_code || "",
@@ -155,6 +205,13 @@ export default function GuardiansClient() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
 
+    const requiredPermission = form.id ? "guardians.update" : "guardians.create";
+
+    if (!can(requiredPermission)) {
+      toast.error("ليس لديك صلاحية تنفيذ هذه العملية");
+      return;
+    }
+
     if (!form.branch_id) {
       toast.error("يجب اختيار الفرع");
       return;
@@ -184,6 +241,11 @@ export default function GuardiansClient() {
   }
 
   async function remove(id: string) {
+    if (!can("guardians.delete")) {
+      toast.error("ليس لديك صلاحية حذف المعيل");
+      return;
+    }
+
     if (!confirm("هل أنت متأكد من حذف سجل المعيل؟")) return;
 
     const res = await fetch(`/api/guardians?id=${id}`, {
@@ -211,16 +273,18 @@ export default function GuardiansClient() {
           </p>
         </div>
 
-        <Button
-          onClick={openCreate}
-          style={{
-            backgroundColor: "var(--app-primary)",
-            color: "white",
-          }}
-        >
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة معيل
-        </Button>
+        {permissionsLoaded && can("guardians.create") && (
+          <Button
+            onClick={openCreate}
+            style={{
+              backgroundColor: "var(--app-primary)",
+              color: "white",
+            }}
+          >
+            <Plus className="w-4 h-4 ml-2" />
+            إضافة معيل
+          </Button>
+        )}
       </div>
 
       <div
@@ -263,17 +327,21 @@ export default function GuardiansClient() {
           }}
           actions={(item) => (
             <>
-              <Button size="sm" variant="outline" onClick={() => openEdit(item)}>
-                <Pencil className="w-4 h-4" />
-              </Button>
+              {permissionsLoaded && can("guardians.update") && (
+                <Button size="sm" variant="outline" onClick={() => openEdit(item)}>
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              )}
 
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => remove(item.id)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {permissionsLoaded && can("guardians.delete") && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => remove(item.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
             </>
           )}
         />
@@ -296,9 +364,12 @@ export default function GuardiansClient() {
               إلغاء
             </Button>
 
-            <Button type="submit" disabled={saving}>
-              {saving ? "جاري الحفظ..." : "حفظ"}
-            </Button>
+            {((form.id && can("guardians.update")) ||
+              (!form.id && can("guardians.create"))) && (
+              <Button type="submit" disabled={saving}>
+                {saving ? "جاري الحفظ..." : "حفظ"}
+              </Button>
+            )}
           </div>
         </form>
       </BaseModal>

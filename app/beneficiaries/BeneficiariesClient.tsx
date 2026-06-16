@@ -188,7 +188,10 @@ export default function BeneficiariesClient() {
       if (data.success) {
         const rawPermissions = data.data?.permissions || [];
 
-        const normalizedPermissions = rawPermissions
+        const allowedPermissionCodes = rawPermissions
+          .filter((permission: any) =>
+            typeof permission === "string" ? true : permission?.allowed === true
+          )
           .map((permission: any) =>
             typeof permission === "string"
               ? permission
@@ -196,7 +199,7 @@ export default function BeneficiariesClient() {
           )
           .filter(Boolean);
 
-        setPermissions(normalizedPermissions);
+        setPermissions(allowedPermissionCodes);
       } else {
         setPermissions([]);
       }
@@ -565,7 +568,6 @@ export default function BeneficiariesClient() {
       toast.error("ليس لديك صلاحية حذف المستفيدين");
       return;
     }
-
     if (!confirm("هل أنت متأكد من حذف المستفيد؟")) return;
 
     const res = await fetch(`/api/beneficiaries?id=${id}`, {
@@ -677,7 +679,6 @@ export default function BeneficiariesClient() {
                           size="sm"
                           variant="outline"
                           onClick={() => edit(item)}
-                          title="تعديل"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -688,7 +689,6 @@ export default function BeneficiariesClient() {
                           size="sm"
                           variant="destructive"
                           onClick={() => remove(item.id)}
-                          title="حذف"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -697,7 +697,12 @@ export default function BeneficiariesClient() {
                       {permissionsLoaded &&
                         !can("beneficiaries.update") &&
                         !can("beneficiaries.delete") && (
-                          <span style={{ color: "var(--app-muted)" }}>-</span>
+                          <span
+                            className="text-xs"
+                            style={{ color: "var(--app-muted)" }}
+                          >
+                            لا توجد صلاحيات
+                          </span>
                         )}
                     </td>
                   </tr>
@@ -859,20 +864,21 @@ export default function BeneficiariesClient() {
                   إلغاء
                 </Button>
 
-                {((form.id && can("beneficiaries.update")) ||
-                  (!form.id && can("beneficiaries.create"))) && (
-                  <Button
-                    type="submit"
-                    disabled={saving || !permissionsLoaded}
-                    className="min-w-24"
-                    style={{
-                      backgroundColor: "var(--app-primary)",
-                      color: "white",
-                    }}
-                  >
-                    {saving ? "جاري الحفظ..." : "حفظ"}
-                  </Button>
-                )}
+                {permissionsLoaded &&
+                  ((form.id && can("beneficiaries.update")) ||
+                    (!form.id && can("beneficiaries.create"))) && (
+                    <Button
+                      type="submit"
+                      disabled={saving}
+                      className="min-w-24"
+                      style={{
+                        backgroundColor: "var(--app-primary)",
+                        color: "white",
+                      }}
+                    >
+                      {saving ? "جاري الحفظ..." : "حفظ"}
+                    </Button>
+                  )}
               </div>
             </form>
           </div>

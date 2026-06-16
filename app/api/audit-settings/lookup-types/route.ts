@@ -2,10 +2,17 @@ import { prisma } from "@/app/lib/prisma";
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
 
+import { requirePermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const permission = await requirePermission("audit_settings.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const columns = await prisma.$queryRaw<any[]>`
       select column_name
       from information_schema.columns

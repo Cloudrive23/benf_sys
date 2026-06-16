@@ -111,6 +111,35 @@ export default function UserPermissionsClient() {
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState("");
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const payload = await res.json();
+
+      if (!res.ok || payload.success === false) {
+        setPermissions([]);
+        return;
+      }
+
+      const effectivePermissions = payload.data?.permissions || [];
+      setPermissions(
+        effectivePermissions
+          .filter((permission: any) => permission.allowed === true)
+          .map((permission: any) => permission.permission_code)
+      );
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
 
   const filteredUsers = useMemo(() => {
     const term = userSearch.trim().toLowerCase();
@@ -166,10 +195,16 @@ export default function UserPermissionsClient() {
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
   }, []);
 
   async function setOverride(permissionId: string, effect: "allow" | "deny") {
+    if (!can("users.manage_permissions")) {
+      toast.error("ليس لديك صلاحية إدارة صلاحيات المستخدم المباشرة");
+      return;
+    }
+
     if (!selectedUser) return;
 
     const key = `${permissionId}-${effect}`;
@@ -206,6 +241,11 @@ export default function UserPermissionsClient() {
   }
 
   async function deleteOverride(permissionId: string) {
+    if (!can("users.manage_permissions")) {
+      toast.error("ليس لديك صلاحية إدارة صلاحيات المستخدم المباشرة");
+      return;
+    }
+
     if (!selectedUser) return;
 
     const key = `${permissionId}-delete`;
@@ -239,6 +279,25 @@ export default function UserPermissionsClient() {
     }
   }
 
+  if (permissionsLoaded && !can("users.manage_permissions")) {
+    return (
+      <div dir="rtl" className="space-y-6">
+        <section
+          className="rounded-2xl border p-8 text-center space-y-3"
+          style={{
+            backgroundColor: "var(--app-surface)",
+            borderColor: "var(--app-border)",
+          }}
+        >
+          <h1 className="text-2xl font-bold">ليس لديك صلاحية إدارة صلاحيات المستخدمين</h1>
+          <p className="text-sm" style={{ color: "var(--app-muted)" }}>
+            يلزم توفر الصلاحية users.manage_permissions للوصول إلى هذه الشاشة.
+          </p>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div dir="rtl" className="space-y-6">
       <header
@@ -257,6 +316,9 @@ export default function UserPermissionsClient() {
             <p className="mt-2 text-sm" style={{ color: "var(--app-muted)" }}>
               منح أو منع صلاحيات خاصة لمستخدم محدد مع عرض الصلاحيات الموروثة من الأدوار.
             </p>
+            {!can("users.manage_permissions") && (
+              <p className="text-xs text-amber-600 mt-1">لديك صلاحية عرض فقط، ولا يمكنك تعديل الاستثناءات.</p>
+            )}
           </div>
 
           <Button onClick={() => selectedUser && load(selectedUser.id)} disabled={loading}>
@@ -475,7 +537,7 @@ export default function UserPermissionsClient() {
                               type="button"
                               size="sm"
                               onClick={() => setOverride(permission.id, "allow")}
-                              disabled={savingKey === `${permission.id}-allow`}
+                              disabled={savingKey === `${permission.id}-allow` || !can("users.manage_permissions")}
                               className="gap-1"
                             >
                               <CheckCircle2 className="h-4 w-4" />
@@ -486,7 +548,7 @@ export default function UserPermissionsClient() {
                               size="sm"
                               variant="destructive"
                               onClick={() => setOverride(permission.id, "deny")}
-                              disabled={savingKey === `${permission.id}-deny`}
+                              disabled={savingKey === `${permission.id}-deny` || !can("users.manage_permissions")}
                               className="gap-1"
                             >
                               <Ban className="h-4 w-4" />
@@ -497,7 +559,7 @@ export default function UserPermissionsClient() {
                               size="sm"
                               variant="outline"
                               onClick={() => deleteOverride(permission.id)}
-                              disabled={!permission.override || savingKey === `${permission.id}-delete`}
+                              disabled={!permission.override || savingKey === `${permission.id}-delete` || !can("users.manage_permissions")}
                               className="gap-1"
                             >
                               <RotateCcw className="h-4 w-4" />

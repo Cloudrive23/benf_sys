@@ -2,6 +2,7 @@ import { prisma } from "@/app/lib/prisma";
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
 
+import { requirePermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
@@ -29,6 +30,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requirePermission("lookups.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
 
@@ -59,6 +66,12 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const permission = await requirePermission("lookups.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
     const data = await prisma.$queryRaw`

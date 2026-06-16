@@ -2,6 +2,7 @@ import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
 import { entityDefinitionsService } from "@/services/entity-definitions.service";
 
+import { requirePermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -9,9 +10,17 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const entityKey = searchParams.get("entityKey");
 
+    // تحميل تعريف كيان محدد يستخدمه النظام أثناء التشغيل، لذلك لا نغلقه بصلاحية الإدارة.
     if (entityKey) {
       const data = await entityDefinitionsService.getByKey(entityKey);
       return successResponse(data, "تم تحميل تعريف الكيان بنجاح");
+    }
+
+    // قائمة كل التعريفات شاشة إدارية، ولذلك تحتاج صلاحية إدارة تعريفات الكيانات.
+    const permission = await requirePermission("entity_definitions.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
     }
 
     const data = await entityDefinitionsService.list();
@@ -29,6 +38,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requirePermission("entity_definitions.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
     const data = await entityDefinitionsService.create(body);
@@ -41,6 +56,12 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const permission = await requirePermission("entity_definitions.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
     if (body.action === "set_active") {

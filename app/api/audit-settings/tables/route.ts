@@ -2,6 +2,7 @@ import { prisma } from "@/app/lib/prisma";
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
 
+import { requirePermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 
 const excludedTables = [
@@ -10,6 +11,12 @@ const excludedTables = [
 
 export async function GET() {
   try {
+    const permission = await requirePermission("audit_settings.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const tables = await prisma.$queryRaw<any[]>`
       select
         table_name

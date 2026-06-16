@@ -67,6 +67,45 @@ export default function MothersClient() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  function normalizePermissions(rawPermissions: any): string[] {
+    if (!Array.isArray(rawPermissions)) return [];
+
+    return rawPermissions
+      .filter((permission) => {
+        if (typeof permission === "string") return true;
+        return permission?.allowed === true;
+      })
+      .map((permission) =>
+        typeof permission === "string" ? permission : permission?.permission_code
+      )
+      .filter(Boolean);
+  }
+
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+
+      if (data.success) {
+        setPermissions(normalizePermissions(data.data?.permissions || []));
+      } else {
+        setPermissions([]);
+      }
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
+
+
   async function load() {
     const res = await fetch("/api/mothers", {
       cache: "no-store",
@@ -97,6 +136,7 @@ export default function MothersClient() {
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
   }, []);
 
@@ -114,12 +154,22 @@ export default function MothersClient() {
   }, [items, search]);
 
   async function openCreate() {
+    if (!can("mothers.create")) {
+      toast.error("ليس لديك صلاحية إضافة الأم");
+      return;
+    }
+
     setForm(emptyForm);
     setOpen(true);
     await loadNextCode();
   }
 
   function openEdit(item: Mother) {
+    if (!can("mothers.update")) {
+      toast.error("ليس لديك صلاحية تعديل بيانات الأم");
+      return;
+    }
+
     setForm({
       id: item.id,
       mother_code: item.mother_code || "",
@@ -148,6 +198,13 @@ export default function MothersClient() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+
+    const requiredPermission = form.id ? "mothers.update" : "mothers.create";
+
+    if (!can(requiredPermission)) {
+      toast.error("ليس لديك صلاحية تنفيذ هذه العملية");
+      return;
+    }
 
     if (!form.branch_id) {
       toast.error("يجب اختيار الفرع");
@@ -178,6 +235,11 @@ export default function MothersClient() {
   }
 
   async function remove(id: string) {
+    if (!can("mothers.delete")) {
+      toast.error("ليس لديك صلاحية حذف الأم");
+      return;
+    }
+
     if (!confirm("هل أنت متأكد من حذف سجل الأم؟")) return;
 
     const res = await fetch(`/api/mothers?id=${id}`, {
@@ -205,16 +267,18 @@ export default function MothersClient() {
           </p>
         </div>
 
-        <Button
-          onClick={openCreate}
-          style={{
-            backgroundColor: "var(--app-primary)",
-            color: "white",
-          }}
-        >
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة أم
-        </Button>
+        {permissionsLoaded && can("mothers.create") && (
+          <Button
+            onClick={openCreate}
+            style={{
+              backgroundColor: "var(--app-primary)",
+              color: "white",
+            }}
+          >
+            <Plus className="w-4 h-4 ml-2" />
+            إضافة أم
+          </Button>
+        )}
       </div>
 
       <div
@@ -257,17 +321,21 @@ export default function MothersClient() {
           }}
           actions={(item) => (
             <>
-              <Button size="sm" variant="outline" onClick={() => openEdit(item)}>
-                <Pencil className="w-4 h-4" />
-              </Button>
+              {permissionsLoaded && can("mothers.update") && (
+                <Button size="sm" variant="outline" onClick={() => openEdit(item)}>
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              )}
 
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => remove(item.id)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {permissionsLoaded && can("mothers.delete") && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => remove(item.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
             </>
           )}
         />
@@ -290,9 +358,12 @@ export default function MothersClient() {
               إلغاء
             </Button>
 
-            <Button type="submit" disabled={saving}>
-              {saving ? "جاري الحفظ..." : "حفظ"}
-            </Button>
+            {((form.id && can("mothers.update")) ||
+              (!form.id && can("mothers.create"))) && (
+              <Button type="submit" disabled={saving}>
+                {saving ? "جاري الحفظ..." : "حفظ"}
+              </Button>
+            )}
           </div>
         </form>
       </BaseModal>

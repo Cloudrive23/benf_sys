@@ -2,6 +2,7 @@ import { prisma } from "@/app/lib/prisma";
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
 
+import { requirePermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 
 const excludedFields = [
@@ -16,6 +17,12 @@ const excludedFields = [
 
 export async function GET(request: Request) {
   try {
+    const permission = await requirePermission("audit_settings.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const { searchParams } = new URL(request.url);
     const table = searchParams.get("table");
 

@@ -5,6 +5,7 @@ import { handleApiError } from "@/lib/handle-api-error";
 
 import { lookupsService } from "@/services/lookups/lookups.service";
 
+import { requirePermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -28,6 +29,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requirePermission("lookups.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
 	const last = await prisma.lookups.findMany({
@@ -59,6 +66,12 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const permission = await requirePermission("lookups.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
     const item = await lookupsService.update(body);
@@ -71,6 +84,12 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const permission = await requirePermission("lookups.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const { searchParams } = new URL(request.url);
 
     const id = searchParams.get("id") || "";

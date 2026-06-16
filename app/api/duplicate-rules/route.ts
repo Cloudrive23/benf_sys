@@ -2,10 +2,17 @@ import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
 import { duplicateRulesService } from "@/services/duplicate-rules.service";
 
+import { requirePermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const permission = await requirePermission("duplicate_rules.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const data = await duplicateRulesService.list();
 
     return successResponse(
@@ -21,6 +28,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requirePermission("duplicate_rules.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 
     const data = await duplicateRulesService.createRule(body);
@@ -33,6 +46,12 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const permission = await requirePermission("duplicate_rules.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
 	
 		if (body.action === "set_active") {
@@ -60,6 +79,12 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const permission = await requirePermission("duplicate_rules.manage");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id") || "";
 

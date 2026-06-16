@@ -1,12 +1,19 @@
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
 import { getCurrentUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { fathersService } from "@/services/fathers/fathers.service";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const permission = await requirePermission("fathers.view");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const data = await fathersService.listFathers();
 
     return successResponse(
@@ -22,6 +29,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requirePermission("fathers.create");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
     const user = await getCurrentUser();
 
@@ -39,6 +52,12 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const permission = await requirePermission("fathers.update");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
     const user = await getCurrentUser();
 
@@ -56,6 +75,12 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const permission = await requirePermission("fathers.delete");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id") || "";
     const user = await getCurrentUser();

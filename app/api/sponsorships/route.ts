@@ -1,12 +1,18 @@
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
-import { getCurrentUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { sponsorshipsService } from "@/services/sponsorships.service";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const permission = await requirePermission("sponsorships.view");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get("action") || "";
     const q = searchParams.get("q") || "";
@@ -43,12 +49,17 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requirePermission("sponsorships.create");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
-    const user = await getCurrentUser();
 
     const data = await sponsorshipsService.create(body, {
-      id: user?.id,
-      role: user?.role,
+      id: permission.user?.id,
+      role: "user",
     });
 
     return successResponse(data, "تمت إضافة الكفالة بنجاح", 201);
@@ -59,12 +70,17 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const permission = await requirePermission("sponsorships.update");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const body = await request.json();
-    const user = await getCurrentUser();
 
     const data = await sponsorshipsService.update(body, {
-      id: user?.id,
-      role: user?.role,
+      id: permission.user?.id,
+      role: "user",
     });
 
     return successResponse(data, "تم تعديل الكفالة بنجاح");
@@ -75,6 +91,12 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const permission = await requirePermission("sponsorships.delete");
+
+    if (!permission.ok) {
+      return permission.response!;
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id") || "";
 

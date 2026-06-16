@@ -1,13 +1,53 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 
+type PermissionItem =
+  | string
+  | {
+      permission_code?: string;
+      allowed?: boolean;
+    };
+
+function normalizeAllowedPermissions(items: PermissionItem[]) {
+  return items
+    .filter((item) => {
+      if (typeof item === "string") return true;
+      return item?.allowed === true && Boolean(item.permission_code);
+    })
+    .map((item) => (typeof item === "string" ? item : item.permission_code || ""))
+    .filter(Boolean);
+}
+
 export default function DynamicBeneficiaryFields({ values, setValues }: any) {
   const [tabs, setTabs] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("");
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
+
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  const canManageDynamicFields = permissions.includes(
+    "beneficiaries.dynamic.update"
+  );
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+
+      if (data.success) {
+        setPermissions(normalizeAllowedPermissions(data.data?.permissions || []));
+      } else {
+        setPermissions([]);
+      }
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
 
   async function loadForm() {
     const res = await fetch("/api/beneficiary-dynamic-form", {
@@ -48,6 +88,7 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     loadForm();
   }, []);
 
@@ -76,14 +117,53 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
   }, [visibleGroups]);
 
   function updateValue(fieldId: string, value: any) {
+    if (!canManageDynamicFields) return;
+
     setValues({
       ...values,
       [fieldId]: value,
     });
   }
 
+  function renderReadonlyValue(field: any, value: any) {
+    if (field.field_type === "boolean") {
+      return value ? "نعم" : "لا";
+    }
+
+    if (field.field_type === "lookup") {
+      const type = field.lookup_type;
+      const items = lookups[type] || [];
+      const item = items.find(
+        (x: any) =>
+          x.id === value ||
+          x.code === value ||
+          x.name_ar === value ||
+          x.name_en === value
+      );
+
+      return item?.name_ar || item?.name_en || item?.code || value || "-";
+    }
+
+    return value || "-";
+  }
+
   function renderField(field: any) {
     const value = values[field.id] || "";
+
+    if (!canManageDynamicFields) {
+      return (
+        <div
+          className="min-h-10 w-full rounded-md border px-3 py-2 text-sm"
+          style={{
+            backgroundColor: "var(--app-bg)",
+            borderColor: "var(--app-border)",
+            color: "var(--app-muted)",
+          }}
+        >
+          {renderReadonlyValue(field, value)}
+        </div>
+      );
+    }
 
     if (field.field_type === "lookup") {
       const type = field.lookup_type;
@@ -170,6 +250,19 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
 
   return (
     <div className="space-y-5 overflow-x-hidden">
+      {permissionsLoaded && !canManageDynamicFields && (
+        <div
+          className="rounded-xl border p-3 text-sm"
+          style={{
+            backgroundColor: "var(--app-bg)",
+            borderColor: "var(--app-border)",
+            color: "var(--app-muted)",
+          }}
+        >
+          لديك صلاحية عرض فقط لهذا التبويب، ولا يمكنك تعديل البيانات الإضافية.
+        </div>
+      )}
+
       <div className="flex gap-2 overflow-x-auto border-b pb-3">
         {tabs.map((tab) => (
           <button
@@ -208,7 +301,7 @@ export default function DynamicBeneficiaryFields({ values, setValues }: any) {
               <div key={field.id} className="min-w-0">
                 <label className="mb-2 block text-sm">
                   {field.field_label_ar}
-                  {field.is_required && (
+                  {field.is_required && canManageDynamicFields && (
                     <span className="mr-1 text-red-500">*</span>
                   )}
                 </label>
