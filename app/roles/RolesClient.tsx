@@ -34,6 +34,7 @@ type User = {
   full_name: string;
   email?: string | null;
   is_active?: boolean | null;
+  is_super_admin?: boolean | null;
 };
 
 type RolePermission = {
@@ -178,7 +179,7 @@ export default function RolesClient() {
 
   const availableUsers = useMemo(() => {
     const assigned = new Set(roleUsers.map((item) => item.user_id));
-    return users.filter((user) => !assigned.has(user.id));
+    return users.filter((user) => !assigned.has(user.id) && user.is_super_admin !== true);
   }, [users, roleUsers]);
 
   const totalPermissions = useMemo(
@@ -408,6 +409,12 @@ export default function RolesClient() {
       return;
     }
 
+    const selectedUser = users.find((user) => user.id === selectedUserId);
+    if (selectedUser?.is_super_admin) {
+      toast.error("لا يمكن إضافة مدير النظام المبرمج إلى الأدوار من داخل النظام");
+      return;
+    }
+
     setSavingUser(true);
     try {
       const res = await fetch("/api/roles", {
@@ -442,6 +449,12 @@ export default function RolesClient() {
     }
 
     if (!selectedRole) return;
+
+    const targetUser = roleUsers.find((item) => item.user_id === userId)?.users;
+    if (targetUser?.is_super_admin) {
+      toast.error("لا يمكن إزالة أدوار مدير النظام المبرمج من داخل النظام");
+      return;
+    }
 
     if (!confirm("هل تريد إزالة هذا المستخدم من الدور؟")) return;
 
@@ -755,7 +768,7 @@ export default function RolesClient() {
                     <option value="">اختر مستخدمًا لإضافته</option>
                     {availableUsers.map((user) => (
                       <option key={user.id} value={user.id}>
-                        {user.full_name} — {user.username}
+                        {user.full_name} — {user.username}{user.is_super_admin ? " — مدير مبرمج" : ""}
                       </option>
                     ))}
                   </select>
@@ -777,10 +790,20 @@ export default function RolesClient() {
                       return (
                         <div key={item.user_id} className="rounded-lg border p-3 flex items-center justify-between gap-3">
                           <div>
-                            <div className="font-medium">{user.full_name}</div>
+                            <div className="font-medium flex items-center gap-2">
+                              <span>{user.full_name}</span>
+                              {user.is_super_admin && (
+                                <Badge variant="secondary">مدير مبرمج</Badge>
+                              )}
+                            </div>
                             <div className="text-xs text-[var(--app-muted)]" dir="ltr">
                               {user.username} {user.email ? `— ${user.email}` : ""}
                             </div>
+                            {user.is_super_admin && (
+                              <div className="text-xs text-amber-600 mt-1">
+                                صلاحياته تلقائية ولا يمكن تعديل أدواره من هنا.
+                              </div>
+                            )}
                           </div>
 
                           <Button
@@ -788,7 +811,7 @@ export default function RolesClient() {
                             variant="destructive"
                             size="sm"
                             onClick={() => removeUserFromRole(item.user_id)}
-                            disabled={savingUser || !can("roles.manage_users")}
+                            disabled={savingUser || !can("roles.manage_users") || user.is_super_admin === true}
                           >
                             إزالة
                           </Button>

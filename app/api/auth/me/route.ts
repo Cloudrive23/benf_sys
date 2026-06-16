@@ -32,6 +32,7 @@ export async function GET() {
           full_name: user.full_name,
           email: user.email,
           is_active: user.is_active,
+          is_super_admin: user.is_super_admin,
         },
         permissions,
       },

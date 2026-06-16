@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getCurrentUserRecord, type CurrentUser } from "@/lib/auth";
 
-type PermissionSource = "role" | "direct_allow" | "direct_deny";
+type PermissionSource = "role" | "direct_allow" | "direct_deny" | "super_admin";
 
 type RolePermissionRow = {
   permission_id: string;
@@ -29,6 +29,16 @@ type OverridePermissionRow = {
   reason: string | null;
 };
 
+type PermissionCatalogRow = {
+  permission_id: string;
+  permission_code: string;
+  permission_name_ar: string | null;
+  permission_name_en: string | null;
+  action_code: string | null;
+  module_code: string | null;
+  module_name_ar: string | null;
+};
+
 export type EffectivePermission = {
   permission_id: string;
   permission_code: string;
@@ -44,9 +54,94 @@ export type EffectivePermission = {
   reason?: string | null;
 };
 
+export async function isSuperAdminUser(userId?: string | null): Promise<boolean> {
+  if (!userId) return false;
+
+  const rows = await prisma.$queryRaw<{ is_super_admin: boolean }[]>`
+    select coalesce(is_super_admin, false) as is_super_admin
+    from users
+    where id = ${userId}::uuid
+    limit 1
+  `;
+
+  return rows[0]?.is_super_admin === true;
+}
+
+export async function markSuperAdmins<T extends Record<string, any>>(
+  users: T[],
+  idField = "id"
+): Promise<T[]> {
+  if (!Array.isArray(users) || users.length === 0) return users;
+
+  const ids = users
+    .map((user) => String(user?.[idField] || "").trim())
+    .filter(Boolean);
+
+  if (ids.length === 0) return users;
+
+  const rows = await prisma.$queryRaw<{ id: string; is_super_admin: boolean }[]>`
+    select id, coalesce(is_super_admin, false) as is_super_admin
+    from users
+    where id = any(${ids}::uuid[])
+  `;
+
+  const map = new Map(rows.map((row) => [row.id, row.is_super_admin]));
+
+  return users.map((user) => ({
+    ...user,
+    is_super_admin: map.get(String(user?.[idField])) === true,
+  }));
+}
+
+export async function getSuperAdminUserIds(): Promise<Set<string>> {
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    select id
+    from users
+    where coalesce(is_super_admin, false) = true
+  `;
+
+  return new Set(rows.map((row) => row.id));
+}
+
+async function getAllPermissionsForSuperAdmin(): Promise<EffectivePermission[]> {
+  const rows = await prisma.$queryRaw<PermissionCatalogRow[]>`
+    select
+      p.id as permission_id,
+      p.permission_code,
+      p.permission_name_ar,
+      p.permission_name_en,
+      p.action_code,
+      m.module_code,
+      m.module_name_ar
+    from permissions p
+    left join system_modules m on m.id = p.module_id
+    where p.is_active = true
+    order by m.sort_order asc nulls last, m.module_code asc nulls last, p.permission_code asc
+  `;
+
+  return rows.map((permission) => ({
+    permission_id: permission.permission_id,
+    permission_code: permission.permission_code,
+    permission_name_ar: permission.permission_name_ar,
+    permission_name_en: permission.permission_name_en,
+    action_code: permission.action_code,
+    module_code: permission.module_code,
+    module_name_ar: permission.module_name_ar,
+    allowed: true,
+    source: "super_admin",
+    source_role_code: "super_admin",
+    source_role_name_ar: "مدير النظام المبرمج",
+    reason: "صلاحية تلقائية لمدير النظام المبرمج ولا يمكن سحبها من النظام",
+  }));
+}
+
 export async function getUserEffectivePermissions(
   userId: string
 ): Promise<EffectivePermission[]> {
+  if (await isSuperAdminUser(userId)) {
+    return getAllPermissionsForSuperAdmin();
+  }
+
   const rolePermissions = await prisma.$queryRaw<RolePermissionRow[]>`
     select distinct
       p.id as permission_id,
@@ -129,6 +224,10 @@ export async function hasPermission(
   userId: string,
   permissionCode: string
 ): Promise<boolean> {
+  if (await isSuperAdminUser(userId)) {
+    return true;
+  }
+
   const directOverrides = await prisma.$queryRaw<{ effect: "allow" | "deny" }[]>`
     select upo.effect
     from user_permission_overrides upo
@@ -186,6 +285,13 @@ export async function requirePermission(permissionCode: string): Promise<{
         { success: false, message: "غير مصرح بالدخول" },
         { status: 401 }
       ),
+    };
+  }
+
+  if (user.is_super_admin) {
+    return {
+      ok: true,
+      user,
     };
   }
 

@@ -20,6 +20,7 @@ export type CurrentUser = {
   branch_id: string | null;
   site_id: string | null;
   center_id: string | null;
+  is_super_admin: boolean;
 };
 
 export function createToken(user: any) {
@@ -62,24 +63,24 @@ export async function getCurrentUserRecord(): Promise<CurrentUser | null> {
     return null;
   }
 
-  const user = await prisma.users.findFirst({
-    where: {
-      id: tokenUser.id,
-      is_active: true,
-    },
-    select: {
-      id: true,
-      username: true,
-      full_name: true,
-      email: true,
-      is_active: true,
-      branch_id: true,
-      site_id: true,
-      center_id: true,
-    },
-  });
+  const rows = await prisma.$queryRaw<CurrentUser[]>`
+    select
+      id,
+      username,
+      full_name,
+      email,
+      is_active,
+      branch_id,
+      site_id,
+      center_id,
+      coalesce(is_super_admin, false) as is_super_admin
+    from users
+    where id = ${tokenUser.id}::uuid
+      and is_active = true
+    limit 1
+  `;
 
-  return user;
+  return rows[0] || null;
 }
 
 export async function requireCurrentUser(): Promise<CurrentUser> {

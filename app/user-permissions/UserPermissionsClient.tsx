@@ -20,6 +20,7 @@ type User = {
   full_name: string;
   email?: string | null;
   is_active?: boolean | null;
+  is_super_admin?: boolean | null;
   roles?: UserRole[];
 };
 
@@ -88,6 +89,7 @@ function actionLabel(action: string) {
 }
 
 function statusLabel(permission: Permission) {
+  if (permission.source === "super_admin") return "مدير مبرمج";
   if (permission.source === "direct_deny") return "ممنوعة مباشرة";
   if (permission.source === "direct_allow") return "ممنوحة مباشرة";
   if (permission.source === "role") return "موروثة من الدور";
@@ -95,6 +97,7 @@ function statusLabel(permission: Permission) {
 }
 
 function statusClass(permission: Permission) {
+  if (permission.source === "super_admin") return "border-purple-300 bg-purple-50 text-purple-700";
   if (permission.source === "direct_deny") return "border-red-300 bg-red-50 text-red-700";
   if (permission.source === "direct_allow") return "border-green-300 bg-green-50 text-green-700";
   if (permission.source === "role") return "border-blue-300 bg-blue-50 text-blue-700";
@@ -146,7 +149,7 @@ export default function UserPermissionsClient() {
     if (!term) return users;
 
     return users.filter((user) =>
-      `${user.username} ${user.full_name} ${user.email || ""} ${(user.roles || [])
+      `${user.username} ${user.full_name} ${user.is_super_admin ? "مدير مبرمج super admin" : ""} ${user.email || ""} ${(user.roles || [])
         .map((role) => `${role.role_code} ${role.role_name_ar}`)
         .join(" ")}`
         .toLowerCase()
@@ -207,6 +210,11 @@ export default function UserPermissionsClient() {
 
     if (!selectedUser) return;
 
+    if (selectedUser.is_super_admin) {
+      toast.error("لا يمكن إضافة أو تعديل صلاحيات مدير النظام المبرمج");
+      return;
+    }
+
     const key = `${permissionId}-${effect}`;
     setSavingKey(key);
 
@@ -247,6 +255,11 @@ export default function UserPermissionsClient() {
     }
 
     if (!selectedUser) return;
+
+    if (selectedUser.is_super_admin) {
+      toast.error("لا يمكن حذف استثناءات أو صلاحيات مدير النظام المبرمج");
+      return;
+    }
 
     const key = `${permissionId}-delete`;
     setSavingKey(key);
@@ -394,7 +407,7 @@ export default function UserPermissionsClient() {
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold">{selectedUser.full_name}</h2>
+                    <h2 className="text-2xl font-bold">{selectedUser.full_name}{selectedUser.is_super_admin ? " — مدير مبرمج" : ""}</h2>
                     <p className="text-sm mt-1" style={{ color: "var(--app-muted)" }}>
                       {selectedUser.username} {selectedUser.email ? `— ${selectedUser.email}` : ""}
                     </p>
@@ -409,6 +422,11 @@ export default function UserPermissionsClient() {
                         <Badge variant="outline">لا يوجد دور</Badge>
                       )}
                     </div>
+                    {selectedUser.is_super_admin && (
+                      <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        هذا المستخدم هو مدير النظام المبرمج. صلاحياته كاملة وتلقائية ولا يمكن منحها أو منعها أو حذفها من داخل النظام.
+                      </div>
+                    )}
                   </div>
 
                   {summary && (
@@ -537,7 +555,7 @@ export default function UserPermissionsClient() {
                               type="button"
                               size="sm"
                               onClick={() => setOverride(permission.id, "allow")}
-                              disabled={savingKey === `${permission.id}-allow` || !can("users.manage_permissions")}
+                              disabled={savingKey === `${permission.id}-allow` || !can("users.manage_permissions") || selectedUser?.is_super_admin === true}
                               className="gap-1"
                             >
                               <CheckCircle2 className="h-4 w-4" />
@@ -548,7 +566,7 @@ export default function UserPermissionsClient() {
                               size="sm"
                               variant="destructive"
                               onClick={() => setOverride(permission.id, "deny")}
-                              disabled={savingKey === `${permission.id}-deny` || !can("users.manage_permissions")}
+                              disabled={savingKey === `${permission.id}-deny` || !can("users.manage_permissions") || selectedUser?.is_super_admin === true}
                               className="gap-1"
                             >
                               <Ban className="h-4 w-4" />
@@ -559,7 +577,7 @@ export default function UserPermissionsClient() {
                               size="sm"
                               variant="outline"
                               onClick={() => deleteOverride(permission.id)}
-                              disabled={!permission.override || savingKey === `${permission.id}-delete` || !can("users.manage_permissions")}
+                              disabled={!permission.override || savingKey === `${permission.id}-delete` || !can("users.manage_permissions") || selectedUser?.is_super_admin === true}
                               className="gap-1"
                             >
                               <RotateCcw className="h-4 w-4" />

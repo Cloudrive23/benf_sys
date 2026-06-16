@@ -1,9 +1,37 @@
+import { NextResponse } from "next/server";
+
+import { prisma } from "@/app/lib/prisma";
 import { usersService } from "@/services/users.service";
 import { successResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/handle-api-error";
-import { requirePermission } from "@/lib/permissions";
+import { isSuperAdminUser, markSuperAdmins, requirePermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
+
+function stripSuperAdminFields(data: any) {
+  if (!data || typeof data !== "object") return data;
+
+  const clean = { ...data };
+  delete clean.is_super_admin;
+  delete clean.super_admin;
+  return clean;
+}
+
+async function rejectIfTargetIsSuperAdmin(userId?: string | null) {
+  if (!userId) return null;
+
+  if (await isSuperAdminUser(userId)) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "لا يمكن تعديل أو حذف حساب مدير النظام المبرمج من داخل النظام",
+      },
+      { status: 403 }
+    );
+  }
+
+  return null;
+}
 
 export async function GET() {
   try {
@@ -11,8 +39,9 @@ export async function GET() {
     if (!permission.ok) return permission.response!;
 
     const users = await usersService.listUsers();
+    const data = await markSuperAdmins(users as any[]);
 
-    return successResponse(users, "تم تحميل المستخدمين بنجاح", 200, users.length);
+    return successResponse(data, "تم تحميل المستخدمين بنجاح", 200, data.length);
   } catch (error) {
     return handleApiError(error);
   }
@@ -33,7 +62,7 @@ export async function POST(request: Request) {
       body = await request.json();
     }
 
-    const user = await usersService.createUser(body);
+    const user = await usersService.createUser(stripSuperAdminFields(body));
 
     return successResponse(user, "تم إنشاء المستخدم بنجاح", 201);
   } catch (error) {
@@ -47,7 +76,10 @@ export async function PUT(request: Request) {
     if (!permission.ok) return permission.response!;
 
     const body = await request.json();
-    const user = await usersService.updateUser(body);
+    const blocked = await rejectIfTargetIsSuperAdmin(body?.id);
+    if (blocked) return blocked;
+
+    const user = await usersService.updateUser(stripSuperAdminFields(body));
 
     return successResponse(user, "تم تعديل المستخدم بنجاح");
   } catch (error) {
@@ -62,6 +94,9 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
+
+    const blocked = await rejectIfTargetIsSuperAdmin(id);
+    if (blocked) return blocked;
 
     await usersService.deleteUser(id || "");
 

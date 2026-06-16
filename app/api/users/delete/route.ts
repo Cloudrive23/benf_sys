@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/app/lib/prisma";
-import { requirePermission } from "@/lib/permissions";
+import { isSuperAdminUser, requirePermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,16 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, message: "معرف المستخدم مطلوب" },
         { status: 400 }
+      );
+    }
+
+    if (await isSuperAdminUser(id)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "لا يمكن حذف حساب مدير النظام المبرمج من داخل النظام",
+        },
+        { status: 403 }
       );
     }
 
