@@ -38,6 +38,11 @@ type Center = {
   };
 };
 
+type PermissionItem = string | {
+  permission_code?: string;
+  allowed?: boolean;
+};
+
 const emptyForm = {
   id: "",
   branch_id: "",
@@ -60,6 +65,42 @@ export default function CentersClient() {
 
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  function normalizePermissions(rawPermissions: PermissionItem[]) {
+    return rawPermissions
+      .filter((permission) => {
+        if (typeof permission === "string") return true;
+        return permission.allowed === true;
+      })
+      .map((permission) =>
+        typeof permission === "string" ? permission : permission.permission_code || ""
+      )
+      .filter(Boolean);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+
+      if (data.success) {
+        setPermissions(normalizePermissions(data.data?.permissions || []));
+      } else {
+        setPermissions([]);
+      }
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
 
   async function load() {
     const res = await fetch("/api/org/centers", {
@@ -69,7 +110,11 @@ export default function CentersClient() {
     const data = await res.json();
 
     if (data.success) {
+      setAccessDenied(false);
       setItems(data.data || []);
+    } else if (res.status === 401 || res.status === 403) {
+      setAccessDenied(true);
+      setItems([]);
     } else {
       toast.error(data.message || "تعذر تحميل المراكز");
     }
@@ -111,10 +156,13 @@ export default function CentersClient() {
         ...old,
         center_code: data.data.center_code,
       }));
+    } else {
+      toast.error(data.message || "تعذر جلب رقم المركز التالي");
     }
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
     loadBranches();
     loadSites();
@@ -140,6 +188,11 @@ export default function CentersClient() {
   }, [items, search]);
 
   async function openCreate() {
+    if (!can("org.centers.create")) {
+      toast.error("ليس لديك صلاحية إضافة مركز");
+      return;
+    }
+
     if (branches.length === 0) {
       toast.error("يجب إضافة فرع أولًا");
       return;
@@ -157,6 +210,11 @@ export default function CentersClient() {
   }
 
   function openEdit(item: Center) {
+    if (!can("org.centers.update")) {
+      toast.error("ليس لديك صلاحية تعديل المراكز");
+      return;
+    }
+
     setForm({
       id: item.id,
       branch_id: item.branch_id,
@@ -174,6 +232,15 @@ export default function CentersClient() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
 
+    const requiredPermission = form.id
+      ? "org.centers.update"
+      : "org.centers.create";
+
+    if (!can(requiredPermission)) {
+      toast.error("ليس لديك صلاحية تنفيذ هذه العملية");
+      return;
+    }
+
     if (!form.branch_id) {
       toast.error("يجب اختيار الفرع");
       return;
@@ -186,32 +253,39 @@ export default function CentersClient() {
 
     setSaving(true);
 
-    const res = await fetch("/api/org/centers", {
-      method: form.id ? "PUT" : "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
+    try {
+      const res = await fetch("/api/org/centers", {
+        method: form.id ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (data.success) {
-      toast.success(data.message || "تم الحفظ بنجاح");
+      if (data.success) {
+        toast.success(data.message || "تم الحفظ بنجاح");
 
-      setOpen(false);
-      setForm(emptyForm);
+        setOpen(false);
+        setForm(emptyForm);
 
-      await load();
-    } else {
-      toast.error(data.message || "تعذر حفظ المركز");
-      console.log(data);
+        await load();
+      } else {
+        toast.error(data.message || "تعذر حفظ المركز");
+        console.log(data);
+      }
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   }
 
   async function remove(id: string) {
+    if (!can("org.centers.delete")) {
+      toast.error("ليس لديك صلاحية حذف المراكز");
+      return;
+    }
+
     if (!confirm("هل أنت متأكد من حذف المركز؟")) return;
 
     const res = await fetch(`/api/org/centers?id=${id}`, {
@@ -226,6 +300,15 @@ export default function CentersClient() {
     } else {
       toast.error(data.message || "تعذر حذف المركز");
     }
+  }
+
+  if (permissionsLoaded && accessDenied) {
+    return (
+      <div className="rounded-2xl border p-8 text-center space-y-3" style={{ backgroundColor: "var(--app-surface)", borderColor: "var(--app-border)" }}>
+        <h1 className="text-2xl font-bold">غير مصرح</h1>
+        <p style={{ color: "var(--app-muted)" }}>ليس لديك صلاحية الوصول إلى شاشة المراكز.</p>
+      </div>
+    );
   }
 
   return (
@@ -246,16 +329,18 @@ export default function CentersClient() {
           </p>
         </div>
 
-        <Button
-          onClick={openCreate}
-          style={{
-            backgroundColor: "var(--app-primary)",
-            color: "white",
-          }}
-        >
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة مركز
-        </Button>
+        {can("org.centers.create") && (
+          <Button
+            onClick={openCreate}
+            style={{
+              backgroundColor: "var(--app-primary)",
+              color: "white",
+            }}
+          >
+            <Plus className="w-4 h-4 ml-2" />
+            إضافة مركز
+          </Button>
+        )}
 
       </div>
 
@@ -346,22 +431,25 @@ export default function CentersClient() {
                     </td>
 
                     <td className="p-3 text-left space-x-2 space-x-reverse">
+                      {can("org.centers.update") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEdit(item)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openEdit(item)}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => remove(item.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {can("org.centers.delete") && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => remove(item.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
 
                     </td>
                   </tr>
@@ -574,12 +662,15 @@ export default function CentersClient() {
                   إلغاء
                 </Button>
 
-                <Button
-                  type="submit"
-                  disabled={saving}
-                >
-                  {saving ? "جاري الحفظ..." : "حفظ"}
-                </Button>
+                {((form.id && can("org.centers.update")) ||
+                  (!form.id && can("org.centers.create"))) && (
+                  <Button
+                    type="submit"
+                    disabled={saving}
+                  >
+                    {saving ? "جاري الحفظ..." : "حفظ"}
+                  </Button>
+                )}
 
               </div>
 

@@ -29,6 +29,11 @@ type Site = {
   };
 };
 
+type PermissionItem = string | {
+  permission_code?: string;
+  allowed?: boolean;
+};
+
 const emptyForm = {
   id: "",
   branch_id: "",
@@ -48,6 +53,42 @@ export default function SitesClient() {
 
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  function normalizePermissions(rawPermissions: PermissionItem[]) {
+    return rawPermissions
+      .filter((permission) => {
+        if (typeof permission === "string") return true;
+        return permission.allowed === true;
+      })
+      .map((permission) =>
+        typeof permission === "string" ? permission : permission.permission_code || ""
+      )
+      .filter(Boolean);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+
+      if (data.success) {
+        setPermissions(normalizePermissions(data.data?.permissions || []));
+      } else {
+        setPermissions([]);
+      }
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
 
   async function load() {
     const res = await fetch("/api/org/sites", {
@@ -57,7 +98,11 @@ export default function SitesClient() {
     const data = await res.json();
 
     if (data.success) {
+      setAccessDenied(false);
       setItems(data.data || []);
+    } else if (res.status === 401 || res.status === 403) {
+      setAccessDenied(true);
+      setItems([]);
     } else {
       toast.error(data.message || "تعذر تحميل المواقع");
     }
@@ -87,10 +132,13 @@ export default function SitesClient() {
         ...old,
         site_code: data.data.site_code,
       }));
+    } else {
+      toast.error(data.message || "تعذر جلب رقم الموقع التالي");
     }
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
     loadBranches();
   }, []);
@@ -109,22 +157,32 @@ export default function SitesClient() {
   }, [items, search]);
 
   async function openCreate() {
-	  if (branches.length === 0) {
- 	   toast.error("يجب إضافة فرع أولًا قبل إضافة أي موقع");
- 	   return;
- 	 }
+    if (!can("org.sites.create")) {
+      toast.error("ليس لديك صلاحية إضافة موقع");
+      return;
+    }
 
-	  setForm({
-	    ...emptyForm,
-	    branch_id: branches[0]?.id || "",
-	  });
-	
-	  setOpen(true);
+    if (branches.length === 0) {
+      toast.error("يجب إضافة فرع أولًا قبل إضافة أي موقع");
+      return;
+    }
 
-	  await loadNextCode();
-      }
+    setForm({
+      ...emptyForm,
+      branch_id: branches[0]?.id || "",
+    });
+
+    setOpen(true);
+
+    await loadNextCode();
+  }
 
   function openEdit(item: Site) {
+    if (!can("org.sites.update")) {
+      toast.error("ليس لديك صلاحية تعديل المواقع");
+      return;
+    }
+
     setForm({
       id: item.id,
       branch_id: item.branch_id,
@@ -140,38 +198,56 @@ export default function SitesClient() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-	if (!form.branch_id) {
- 	 toast.error("يجب اختيار الفرع المرتبط بالموقع");
-	  return;
-	}
-    setSaving(true);
 
-    const res = await fetch("/api/org/sites", {
-      method: form.id ? "PUT" : "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
+    const requiredPermission = form.id
+      ? "org.sites.update"
+      : "org.sites.create";
 
-    const data = await res.json();
-
-    if (data.success) {
-      toast.success(data.message || "تم الحفظ بنجاح");
-
-      setOpen(false);
-      setForm(emptyForm);
-
-      await load();
-    } else {
-      toast.error(data.message || "تعذر حفظ الموقع");
-      console.log(data);
+    if (!can(requiredPermission)) {
+      toast.error("ليس لديك صلاحية تنفيذ هذه العملية");
+      return;
     }
 
-    setSaving(false);
+    if (!form.branch_id) {
+      toast.error("يجب اختيار الفرع المرتبط بالموقع");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const res = await fetch("/api/org/sites", {
+        method: form.id ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success(data.message || "تم الحفظ بنجاح");
+
+        setOpen(false);
+        setForm(emptyForm);
+
+        await load();
+      } else {
+        toast.error(data.message || "تعذر حفظ الموقع");
+        console.log(data);
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function remove(id: string) {
+    if (!can("org.sites.delete")) {
+      toast.error("ليس لديك صلاحية حذف المواقع");
+      return;
+    }
+
     if (!confirm("هل أنت متأكد من حذف الموقع؟")) return;
 
     const res = await fetch(`/api/org/sites?id=${id}`, {
@@ -186,6 +262,15 @@ export default function SitesClient() {
     } else {
       toast.error(data.message || "تعذر حذف الموقع");
     }
+  }
+
+  if (permissionsLoaded && accessDenied) {
+    return (
+      <div className="rounded-2xl border p-8 text-center space-y-3" style={{ backgroundColor: "var(--app-surface)", borderColor: "var(--app-border)" }}>
+        <h1 className="text-2xl font-bold">غير مصرح</h1>
+        <p style={{ color: "var(--app-muted)" }}>ليس لديك صلاحية الوصول إلى شاشة المواقع.</p>
+      </div>
+    );
   }
 
   return (
@@ -205,16 +290,18 @@ export default function SitesClient() {
           </p>
         </div>
 
-        <Button
-          onClick={openCreate}
-          style={{
-            backgroundColor: "var(--app-primary)",
-            color: "white",
-          }}
-        >
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة موقع
-        </Button>
+        {can("org.sites.create") && (
+          <Button
+            onClick={openCreate}
+            style={{
+              backgroundColor: "var(--app-primary)",
+              color: "white",
+            }}
+          >
+            <Plus className="w-4 h-4 ml-2" />
+            إضافة موقع
+          </Button>
+        )}
       </div>
 
       <div
@@ -302,23 +389,25 @@ export default function SitesClient() {
                     </td>
 
                     <td className="p-3 text-left space-x-2 space-x-reverse">
+                      {can("org.sites.update") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEdit(item)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openEdit(item)}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => remove(item.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-
+                      {can("org.sites.delete") && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => remove(item.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -365,7 +454,7 @@ export default function SitesClient() {
                   <select
                     required
                     disabled={Boolean(form.id)}
-					className="w-full rounded-md border bg-transparent p-2"
+                    className="w-full rounded-md border bg-transparent p-2"
                     value={form.branch_id}
                     onChange={(e) =>
                       setForm({
@@ -473,12 +562,15 @@ export default function SitesClient() {
                   إلغاء
                 </Button>
 
-                <Button
-                  type="submit"
-                  disabled={saving}
-                >
-                  {saving ? "جاري الحفظ..." : "حفظ"}
-                </Button>
+                {((form.id && can("org.sites.update")) ||
+                  (!form.id && can("org.sites.create"))) && (
+                  <Button
+                    type="submit"
+                    disabled={saving}
+                  >
+                    {saving ? "جاري الحفظ..." : "حفظ"}
+                  </Button>
+                )}
 
               </div>
 

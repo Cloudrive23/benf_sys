@@ -18,6 +18,11 @@ type Branch = {
   is_active: boolean | null;
 };
 
+type PermissionItem = string | {
+  permission_code?: string;
+  allowed?: boolean;
+};
+
 const emptyForm = {
   id: "",
   branch_code: "",
@@ -35,13 +40,53 @@ export default function BranchesClient() {
   const [form, setForm] = useState(emptyForm);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  function can(permissionCode: string) {
+    return permissions.includes(permissionCode);
+  }
+
+  function normalizePermissions(rawPermissions: PermissionItem[]) {
+    return rawPermissions
+      .filter((permission) => {
+        if (typeof permission === "string") return true;
+        return permission.allowed === true;
+      })
+      .map((permission) =>
+        typeof permission === "string" ? permission : permission.permission_code || ""
+      )
+      .filter(Boolean);
+  }
+
+  async function loadCurrentUserPermissions() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await res.json();
+
+      if (data.success) {
+        setPermissions(normalizePermissions(data.data?.permissions || []));
+      } else {
+        setPermissions([]);
+      }
+    } catch {
+      setPermissions([]);
+    } finally {
+      setPermissionsLoaded(true);
+    }
+  }
 
   async function load() {
     const res = await fetch("/api/org/branches", { cache: "no-store" });
     const data = await res.json();
 
     if (data.success) {
+      setAccessDenied(false);
       setItems(data.data || []);
+    } else if (res.status === 401 || res.status === 403) {
+      setAccessDenied(true);
+      setItems([]);
     } else {
       toast.error(data.message || "تعذر تحميل الفروع");
     }
@@ -59,10 +104,13 @@ export default function BranchesClient() {
         ...old,
         branch_code: data.data.branch_code,
       }));
+    } else {
+      toast.error(data.message || "تعذر جلب رقم الفرع التالي");
     }
   }
 
   useEffect(() => {
+    loadCurrentUserPermissions();
     load();
   }, []);
 
@@ -75,12 +123,22 @@ export default function BranchesClient() {
   }, [items, search]);
 
   async function openCreate() {
+    if (!can("org.branches.create")) {
+      toast.error("ليس لديك صلاحية إضافة فرع");
+      return;
+    }
+
     setForm(emptyForm);
     setOpen(true);
     await loadNextCode();
   }
 
   function openEdit(item: Branch) {
+    if (!can("org.branches.update")) {
+      toast.error("ليس لديك صلاحية تعديل الفروع");
+      return;
+    }
+
     setForm({
       id: item.id,
       branch_code: item.branch_code,
@@ -97,32 +155,49 @@ export default function BranchesClient() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
 
-    const res = await fetch("/api/org/branches", {
-      method: form.id ? "PUT" : "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
+    const requiredPermission = form.id
+      ? "org.branches.update"
+      : "org.branches.create";
 
-    const data = await res.json();
-
-    if (data.success) {
-      toast.success(data.message || "تم الحفظ بنجاح");
-      setOpen(false);
-      setForm(emptyForm);
-      await load();
-    } else {
-      toast.error(data.message || "تعذر حفظ الفرع");
-      console.log(data);
+    if (!can(requiredPermission)) {
+      toast.error("ليس لديك صلاحية تنفيذ هذه العملية");
+      return;
     }
 
-    setSaving(false);
+    setSaving(true);
+
+    try {
+      const res = await fetch("/api/org/branches", {
+        method: form.id ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success(data.message || "تم الحفظ بنجاح");
+        setOpen(false);
+        setForm(emptyForm);
+        await load();
+      } else {
+        toast.error(data.message || "تعذر حفظ الفرع");
+        console.log(data);
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function remove(id: string) {
+    if (!can("org.branches.delete")) {
+      toast.error("ليس لديك صلاحية حذف الفروع");
+      return;
+    }
+
     if (!confirm("هل أنت متأكد من حذف الفرع؟")) return;
 
     const res = await fetch(`/api/org/branches?id=${id}`, {
@@ -139,6 +214,15 @@ export default function BranchesClient() {
     }
   }
 
+  if (permissionsLoaded && accessDenied) {
+    return (
+      <div className="rounded-2xl border p-8 text-center space-y-3" style={{ backgroundColor: "var(--app-surface)", borderColor: "var(--app-border)" }}>
+        <h1 className="text-2xl font-bold">غير مصرح</h1>
+        <p style={{ color: "var(--app-muted)" }}>ليس لديك صلاحية الوصول إلى شاشة الفروع.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -149,16 +233,18 @@ export default function BranchesClient() {
           </p>
         </div>
 
-        <Button
-          onClick={openCreate}
-          style={{
-            backgroundColor: "var(--app-primary)",
-            color: "white",
-          }}
-        >
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة فرع
-        </Button>
+        {can("org.branches.create") && (
+          <Button
+            onClick={openCreate}
+            style={{
+              backgroundColor: "var(--app-primary)",
+              color: "white",
+            }}
+          >
+            <Plus className="w-4 h-4 ml-2" />
+            إضافة فرع
+          </Button>
+        )}
       </div>
 
       <div
@@ -222,21 +308,25 @@ export default function BranchesClient() {
                       <Badge>{item.is_active ? "نشط" : "غير نشط"}</Badge>
                     </td>
                     <td className="p-3 text-left space-x-2 space-x-reverse">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openEdit(item)}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
+                      {can("org.branches.update") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEdit(item)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
 
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => remove(item.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {can("org.branches.delete") && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => remove(item.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -359,9 +449,12 @@ export default function BranchesClient() {
                   إلغاء
                 </Button>
 
-                <Button type="submit" disabled={saving}>
-                  {saving ? "جاري الحفظ..." : "حفظ"}
-                </Button>
+                {((form.id && can("org.branches.update")) ||
+                  (!form.id && can("org.branches.create"))) && (
+                  <Button type="submit" disabled={saving}>
+                    {saving ? "جاري الحفظ..." : "حفظ"}
+                  </Button>
+                )}
               </div>
             </form>
           </div>
