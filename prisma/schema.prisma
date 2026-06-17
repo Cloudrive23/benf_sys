@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../app/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -21,10 +22,29 @@ model attachment_types {
   is_active                   Boolean?                      @default(true)
   created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
   updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  entity_type                 String?                       @db.VarChar(100)
+  section_id                  String?                       @db.Uuid
+  path_segment                String?                       @db.VarChar(255)
+  allowed_mime_types          String?
+  min_width                   Int?
+  max_width                   Int?
+  min_height                  Int?
+  max_height                  Int?
+  is_image_required           Boolean                       @default(false)
+  allow_multiple              Boolean                       @default(false)
+  naming_strategy             String                        @default("file_number") @db.VarChar(100)
+  path_template               String?
+  sort_order                  Int                           @default(0)
+  notes                       String?
+  attachment_sections         attachment_sections?          @relation(fields: [section_id], references: [id], onUpdate: NoAction)
   beneficiary_attachments     beneficiary_attachments[]
+  entity_attachments          entity_attachments[]
   periodic_report_attachments periodic_report_attachments[]
 
   @@index([category], map: "idx_attachment_types_category")
+  @@index([entity_type], map: "idx_attachment_types_entity_type")
+  @@index([section_id], map: "idx_attachment_types_section_id")
+  @@index([sort_order], map: "idx_attachment_types_sort_order")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -68,7 +88,6 @@ model beneficiaries {
   family_name                 String?                       @db.VarChar(100)
   full_name                   String?                       @db.VarChar(255)
   gender                      String?                       @db.VarChar(20)
-  gender_id                   String?                       @db.Uuid
   birth_date                  DateTime?                     @db.Date
   birth_place                 String?                       @db.VarChar(255)
   nationality                 String?                       @db.VarChar(100)
@@ -82,29 +101,38 @@ model beneficiaries {
   current_status              String?                       @default("draft") @db.VarChar(50)
   notes                       String?
   is_active                   Boolean?                      @default(true)
-  father_id                   String?                       @db.Uuid
-  mother_id                   String?                       @db.Uuid
-  guardian_id                 String?                       @db.Uuid
-  social_notes                String?
   created_by                  String?                       @db.Uuid
   updated_by                  String?                       @db.Uuid
   created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
   updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
   deleted_at                  DateTime?                     @db.Timestamp(6)
+  father_id                   String?                       @db.Uuid
+  mother_id                   String?                       @db.Uuid
+  guardian_id                 String?                       @db.Uuid
+  social_notes                String?
+  status_id                   String?                       @db.Uuid
+  gender_id                   String?                       @db.Uuid
   branches                    branches                      @relation(fields: [branch_id], references: [id])
   centers                     centers?                      @relation(fields: [center_id], references: [id])
+  fathers                     fathers?                      @relation(fields: [father_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  guardians                   guardians?                    @relation(fields: [guardian_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mothers                     mothers?                      @relation(fields: [mother_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   sites                       sites                         @relation(fields: [site_id], references: [id])
-  status_id                   String?                       @db.Uuid
+  lookups                     lookups?                      @relation(fields: [status_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   beneficiary_attachments     beneficiary_attachments[]
   beneficiary_change_logs     beneficiary_change_logs[]
+  beneficiary_custom_values   beneficiary_custom_values[]
   beneficiary_dynamic_data    beneficiary_dynamic_data[]
+  family_members              beneficiary_family_members[]
   beneficiary_related_persons beneficiary_related_persons[]
+  beneficiary_sponsor_links   beneficiary_sponsor_links[]
   beneficiary_status_history  beneficiary_status_history[]
+  benf_fin_entitlements       benf_fin_entitlements[]
+  benf_fin_entries            benf_fin_entries[]
+  benf_fin_transactions       benf_fin_transactions[]
   periodic_report_attachments periodic_report_attachments[]
   periodic_reports            periodic_reports[]
   sponsorships                sponsorships[]
-  beneficiary_sponsor_links   beneficiary_sponsor_links[]
-  family_members              beneficiary_family_members[]
 
   @@index([beneficiary_type], map: "idx_beneficiaries_beneficiary_type")
   @@index([branch_id], map: "idx_beneficiaries_branch_id")
@@ -114,6 +142,9 @@ model beneficiaries {
   @@index([full_name], map: "idx_beneficiaries_full_name")
   @@index([identity_number], map: "idx_beneficiaries_identity_number")
   @@index([site_id], map: "idx_beneficiaries_site_id")
+  @@index([father_id], map: "idx_beneficiaries_father")
+  @@index([guardian_id], map: "idx_beneficiaries_guardian")
+  @@index([mother_id], map: "idx_beneficiaries_mother")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -238,7 +269,11 @@ model branches {
   updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
   beneficiaries               beneficiaries[]
   beneficiary_attachments     beneficiary_attachments[]
+  benf_fin_entries            benf_fin_entries[]
   centers                     centers[]
+  fathers                     fathers[]
+  guardians                   guardians[]
+  mothers                     mothers[]
   periodic_report_attachments periodic_report_attachments[]
   sites                       sites[]
   users                       users[]
@@ -354,19 +389,18 @@ model periodic_reports {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model permissions {
-  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  permission_code    String             @unique @db.VarChar(150)
-  permission_name_ar String             @db.VarChar(255)
-  permission_name_en String?            @db.VarChar(255)
-  module_id          String?            @db.Uuid
-  action_code        String             @db.VarChar(50)
-  description        String?
-  is_active          Boolean?           @default(true)
-  created_at         DateTime?          @default(now()) @db.Timestamp(6)
-  updated_at         DateTime?          @default(now()) @db.Timestamp(6)
-  system_modules     system_modules?    @relation(fields: [module_id], references: [id])
-  role_permissions   role_permissions[]
-
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  permission_code           String                      @unique @db.VarChar(150)
+  permission_name_ar        String                      @db.VarChar(255)
+  permission_name_en        String?                     @db.VarChar(255)
+  module_id                 String?                     @db.Uuid
+  action_code               String                      @db.VarChar(50)
+  description               String?
+  is_active                 Boolean?                    @default(true)
+  created_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  system_modules            system_modules?             @relation(fields: [module_id], references: [id])
+  role_permissions          role_permissions[]
   user_permission_overrides user_permission_overrides[]
 
   @@index([action_code], map: "idx_permissions_action_code")
@@ -466,10 +500,11 @@ model sponsors {
   updated_by                String?                     @db.Uuid
   created_at                DateTime?                   @default(now()) @db.Timestamp(6)
   updated_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  beneficiary_sponsor_links beneficiary_sponsor_links[]
+  benf_fin_entries          benf_fin_entries[]
   sponsors                  sponsors?                   @relation("sponsorsTosponsors", fields: [parent_sponsor_id], references: [id])
   other_sponsors            sponsors[]                  @relation("sponsorsTosponsors")
   sponsorships              sponsorships[]
-  beneficiary_sponsor_links beneficiary_sponsor_links[]
 
   @@index([sponsor_name], map: "idx_sponsors_name")
   @@index([parent_sponsor_id], map: "idx_sponsors_parent_sponsor_id")
@@ -510,13 +545,15 @@ model sponsorships {
   updated_by                  String?                       @db.Uuid
   created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
   updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  beneficiary_sponsor_link_id String?                       @db.Uuid
+  benf_fin_entitlements       benf_fin_entitlements[]
+  benf_fin_transactions       benf_fin_transactions[]
   periodic_report_attachments periodic_report_attachments[]
   periodic_reports            periodic_reports[]
   sponsorship_status_history  sponsorship_status_history[]
+  beneficiary_sponsor_links   beneficiary_sponsor_links?    @relation(fields: [beneficiary_sponsor_link_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sponsorships_beneficiary_sponsor_link")
   beneficiaries               beneficiaries                 @relation(fields: [beneficiary_id], references: [id])
   sponsors                    sponsors                      @relation(fields: [sponsor_id], references: [id])
-  beneficiary_sponsor_link_id String?                       @db.Uuid
-  beneficiary_sponsor_links   beneficiary_sponsor_links?    @relation(fields: [beneficiary_sponsor_link_id], references: [id])
 
   @@index([beneficiary_id], map: "idx_sponsorships_beneficiary_id")
   @@index([end_date], map: "idx_sponsorships_end_date")
@@ -560,26 +597,26 @@ model user_roles {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model users {
-  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  username      String       @unique @db.VarChar(100)
-  full_name     String       @db.VarChar(255)
-  email         String?      @unique @db.VarChar(255)
-  phone         String?      @db.VarChar(50)
-  password_hash String
-  branch_id     String?      @db.Uuid
-  site_id       String?      @db.Uuid
-  center_id     String?      @db.Uuid
-  is_active     Boolean?     @default(true)
-  last_login_at DateTime?    @db.Timestamp(6)
-  created_at    DateTime?    @default(now()) @db.Timestamp(6)
-  updated_at    DateTime?    @default(now()) @db.Timestamp(6)
-  user_roles    user_roles[]
-  branches      branches?    @relation(fields: [branch_id], references: [id])
-  centers       centers?     @relation(fields: [center_id], references: [id])
-  sites         sites?       @relation(fields: [site_id], references: [id])
-
-  user_permission_overrides         user_permission_overrides[] @relation("user_permission_overrides_user")
+  id                                String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username                          String                      @unique @db.VarChar(100)
+  full_name                         String                      @db.VarChar(255)
+  email                             String?                     @unique @db.VarChar(255)
+  phone                             String?                     @db.VarChar(50)
+  password_hash                     String
+  branch_id                         String?                     @db.Uuid
+  site_id                           String?                     @db.Uuid
+  center_id                         String?                     @db.Uuid
+  is_active                         Boolean?                    @default(true)
+  last_login_at                     DateTime?                   @db.Timestamp(6)
+  created_at                        DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                        DateTime?                   @default(now()) @db.Timestamp(6)
+  is_super_admin                    Boolean?                    @default(false)
   created_user_permission_overrides user_permission_overrides[] @relation("user_permission_overrides_created_by")
+  user_permission_overrides         user_permission_overrides[] @relation("user_permission_overrides_user")
+  user_roles                        user_roles[]
+  branches                          branches?                   @relation(fields: [branch_id], references: [id])
+  centers                           centers?                    @relation(fields: [center_id], references: [id])
+  sites                             sites?                      @relation(fields: [site_id], references: [id])
 
   @@index([branch_id], map: "idx_users_branch_id")
   @@index([email], map: "idx_users_email")
@@ -587,482 +624,423 @@ model users {
 }
 
 model lookups {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  lookup_type String   @db.VarChar(100)
-  code        String?  @db.VarChar(100)
-  name_ar     String   @db.VarChar(255)
-  name_en     String?  @db.VarChar(255)
-  notes       String?
-  sort_order  Int?     @default(0)
-  is_active   Boolean? @default(true)
-  is_deleted  Boolean? @default(false)
+  id                                                String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lookup_type                                       String                      @db.VarChar(100)
+  code                                              String?                     @db.VarChar(100)
+  name_ar                                           String                      @db.VarChar(255)
+  name_en                                           String?                     @db.VarChar(255)
+  notes                                             String?
+  sort_order                                        Int?                        @default(0)
+  is_active                                         Boolean?                    @default(true)
+  is_deleted                                        Boolean?                    @default(false)
+  created_at                                        DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                                        DateTime?                   @default(now()) @db.Timestamp(6)
+  beneficiaries                                     beneficiaries[]
+  beneficiary_custom_values                         beneficiary_custom_values[]
+  fathers_fathers_death_reason_idTolookups          fathers[]                   @relation("fathers_death_reason_idTolookups")
+  fathers_fathers_occupation_idTolookups            fathers[]                   @relation("fathers_occupation_idTolookups")
+  guardians_guardians_death_reason_idTolookups      guardians[]                 @relation("guardians_death_reason_idTolookups")
+  guardians_guardians_gender_idTolookups            guardians[]                 @relation("guardians_gender_idTolookups")
+  guardians_guardians_health_status_idTolookups     guardians[]                 @relation("guardians_health_status_idTolookups")
+  guardians_guardians_marital_status_idTolookups    guardians[]                 @relation("guardians_marital_status_idTolookups")
+  guardians_guardians_nationality_idTolookups       guardians[]                 @relation("guardians_nationality_idTolookups")
+  guardians_guardians_occupation_idTolookups        guardians[]                 @relation("guardians_occupation_idTolookups")
+  guardians_guardians_relationship_type_idTolookups guardians[]                 @relation("guardians_relationship_type_idTolookups")
+  mothers_mothers_death_reason_idTolookups          mothers[]                   @relation("mothers_death_reason_idTolookups")
+  mothers_mothers_gender_idTolookups                mothers[]                   @relation("mothers_gender_idTolookups")
+  mothers_mothers_health_status_idTolookups         mothers[]                   @relation("mothers_health_status_idTolookups")
+  mothers_mothers_marital_status_idTolookups        mothers[]                   @relation("mothers_marital_status_idTolookups")
+  mothers_mothers_nationality_idTolookups           mothers[]                   @relation("mothers_nationality_idTolookups")
+  mothers_mothers_occupation_idTolookups            mothers[]                   @relation("mothers_occupation_idTolookups")
 
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  @@index([lookup_type])
+  @@unique([lookup_type, name_ar], map: "ux_lookups_type_name_active", where: raw("(is_deleted = false)"))
+  @@index([lookup_type], map: "idx_lookups_type")
 }
 
 model fathers {
-  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  father_code String @unique @db.VarChar(50)
+  id                                       String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  father_code                              String          @unique @db.VarChar(50)
+  branch_id                                String          @db.Uuid
+  full_name_ar                             String          @db.VarChar(255)
+  full_name_en                             String?         @db.VarChar(255)
+  identity_number                          String?         @unique(map: "ux_fathers_identity", where: raw("((identity_number IS NOT NULL) AND (is_deleted = false))")) @db.VarChar(100)
+  birth_date                               DateTime?       @db.Date
+  death_date                               DateTime?       @db.Date
+  death_reason_id                          String?         @db.Uuid
+  phone                                    String?         @db.VarChar(50)
+  address                                  String?
+  occupation                               String?         @db.VarChar(255)
+  notes                                    String?
+  is_active                                Boolean?        @default(true)
+  is_deleted                               Boolean?        @default(false)
+  created_at                               DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at                               DateTime?       @default(now()) @db.Timestamp(6)
+  occupation_id                            String?         @db.Uuid
+  beneficiaries                            beneficiaries[]
+  branches                                 branches        @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_fathers_death_reason_idTolookups lookups?        @relation("fathers_death_reason_idTolookups", fields: [death_reason_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_fathers_occupation_idTolookups   lookups?        @relation("fathers_occupation_idTolookups", fields: [occupation_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  branch_id String @db.Uuid
-
-  full_name_ar String  @db.VarChar(255)
-  full_name_en String? @db.VarChar(255)
-
-  identity_number String? @db.VarChar(100)
-
-  birth_date DateTime? @db.Date
-  death_date DateTime? @db.Date
-
-  death_reason_id String? @db.Uuid
-
-  phone         String? @db.VarChar(50)
-  address       String?
-  occupation    String? @db.VarChar(255)
-  occupation_id String? @db.Uuid
-  notes         String?
-
-  is_active  Boolean? @default(true)
-  is_deleted Boolean? @default(false)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  @@index([branch_id])
-  @@index([full_name_ar])
+  @@index([branch_id], map: "idx_fathers_branch")
+  @@index([full_name_ar], map: "idx_fathers_name")
 }
 
 model mothers {
-  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  mother_code String @unique @db.VarChar(50)
+  id                                         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mother_code                                String          @unique @db.VarChar(50)
+  branch_id                                  String          @db.Uuid
+  full_name_ar                               String          @db.VarChar(255)
+  full_name_en                               String?         @db.VarChar(255)
+  identity_number                            String?         @unique(map: "ux_mothers_identity", where: raw("((identity_number IS NOT NULL) AND (is_deleted = false))")) @db.VarChar(100)
+  birth_date                                 DateTime?       @db.Date
+  death_date                                 DateTime?       @db.Date
+  death_reason_id                            String?         @db.Uuid
+  marital_status_id                          String?         @db.Uuid
+  gender_id                                  String?         @db.Uuid
+  occupation_id                              String?         @db.Uuid
+  nationality_id                             String?         @db.Uuid
+  health_status_id                           String?         @db.Uuid
+  is_guardian                                Boolean?        @default(false)
+  is_alive                                   Boolean?        @default(true)
+  phone                                      String?         @db.VarChar(50)
+  address                                    String?
+  notes                                      String?
+  is_active                                  Boolean?        @default(true)
+  is_deleted                                 Boolean?        @default(false)
+  created_at                                 DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at                                 DateTime?       @default(now()) @db.Timestamp(6)
+  beneficiaries                              beneficiaries[]
+  guardians                                  guardians[]
+  branches                                   branches        @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_mothers_death_reason_idTolookups   lookups?        @relation("mothers_death_reason_idTolookups", fields: [death_reason_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_mothers_gender_idTolookups         lookups?        @relation("mothers_gender_idTolookups", fields: [gender_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_mothers_health_status_idTolookups  lookups?        @relation("mothers_health_status_idTolookups", fields: [health_status_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_mothers_marital_status_idTolookups lookups?        @relation("mothers_marital_status_idTolookups", fields: [marital_status_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_mothers_nationality_idTolookups    lookups?        @relation("mothers_nationality_idTolookups", fields: [nationality_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_mothers_occupation_idTolookups     lookups?        @relation("mothers_occupation_idTolookups", fields: [occupation_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  branch_id String @db.Uuid
-
-  full_name_ar String  @db.VarChar(255)
-  full_name_en String? @db.VarChar(255)
-
-  identity_number String?   @db.VarChar(100)
-  birth_date      DateTime? @db.Date
-  death_date      DateTime? @db.Date
-
-  death_reason_id   String? @db.Uuid
-  marital_status_id String? @db.Uuid
-  gender_id         String? @db.Uuid
-  occupation_id     String? @db.Uuid
-  nationality_id    String? @db.Uuid
-  health_status_id  String? @db.Uuid
-
-  is_guardian Boolean? @default(false)
-  is_alive    Boolean? @default(true)
-
-  phone   String? @db.VarChar(50)
-  address String?
-  notes   String?
-
-  is_active  Boolean? @default(true)
-  is_deleted Boolean? @default(false)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  @@index([branch_id])
-  @@index([full_name_ar])
+  @@index([branch_id], map: "idx_mothers_branch")
+  @@index([full_name_ar], map: "idx_mothers_name")
 }
 
 model guardians {
-  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  guardian_code String @unique @db.VarChar(50)
+  id                                              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  guardian_code                                   String          @unique @db.VarChar(50)
+  branch_id                                       String          @db.Uuid
+  full_name_ar                                    String          @db.VarChar(255)
+  full_name_en                                    String?         @db.VarChar(255)
+  identity_number                                 String?         @unique(map: "ux_guardians_identity", where: raw("((identity_number IS NOT NULL) AND (is_deleted = false))")) @db.VarChar(100)
+  birth_date                                      DateTime?       @db.Date
+  gender_id                                       String?         @db.Uuid
+  relationship_type_id                            String?         @db.Uuid
+  marital_status_id                               String?         @db.Uuid
+  occupation_id                                   String?         @db.Uuid
+  nationality_id                                  String?         @db.Uuid
+  health_status_id                                String?         @db.Uuid
+  phone                                           String?         @db.VarChar(50)
+  address                                         String?
+  notes                                           String?
+  is_mother                                       Boolean?        @default(false)
+  mother_id                                       String?         @db.Uuid
+  is_active                                       Boolean?        @default(true)
+  is_deleted                                      Boolean?        @default(false)
+  created_at                                      DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at                                      DateTime?       @default(now()) @db.Timestamp(6)
+  is_alive                                        Boolean?        @default(true)
+  death_date                                      DateTime?       @db.Date
+  death_reason_id                                 String?         @db.Uuid
+  beneficiaries                                   beneficiaries[]
+  branches                                        branches        @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_guardians_death_reason_idTolookups      lookups?        @relation("guardians_death_reason_idTolookups", fields: [death_reason_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_guardians_gender_idTolookups            lookups?        @relation("guardians_gender_idTolookups", fields: [gender_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_guardians_health_status_idTolookups     lookups?        @relation("guardians_health_status_idTolookups", fields: [health_status_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_guardians_marital_status_idTolookups    lookups?        @relation("guardians_marital_status_idTolookups", fields: [marital_status_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mothers                                         mothers?        @relation(fields: [mother_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_guardians_nationality_idTolookups       lookups?        @relation("guardians_nationality_idTolookups", fields: [nationality_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_guardians_occupation_idTolookups        lookups?        @relation("guardians_occupation_idTolookups", fields: [occupation_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups_guardians_relationship_type_idTolookups lookups?        @relation("guardians_relationship_type_idTolookups", fields: [relationship_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  branch_id String @db.Uuid
-
-  full_name_ar String  @db.VarChar(255)
-  full_name_en String? @db.VarChar(255)
-
-  identity_number String?   @db.VarChar(100)
-  birth_date      DateTime? @db.Date
-
-  gender_id            String? @db.Uuid
-  relationship_type_id String? @db.Uuid
-  marital_status_id    String? @db.Uuid
-  occupation_id        String? @db.Uuid
-  nationality_id       String? @db.Uuid
-  health_status_id     String? @db.Uuid
-
-  phone   String? @db.VarChar(50)
-  address String?
-  notes   String?
-
-  is_mother Boolean? @default(false)
-  mother_id String?  @db.Uuid
-
-  is_active       Boolean?  @default(true)
-  is_deleted      Boolean?  @default(false)
-  is_alive        Boolean?  @default(true)
-  death_date      DateTime? @db.Date
-  death_reason_id String?   @db.Uuid
-  created_at      DateTime? @default(now()) @db.Timestamp(6)
-  updated_at      DateTime? @default(now()) @db.Timestamp(6)
-
-  @@index([branch_id])
-  @@index([full_name_ar])
+  @@index([branch_id], map: "idx_guardians_branch")
+  @@index([full_name_ar], map: "idx_guardians_name")
 }
 
 model system_settings {
-  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_name String? @db.VarChar(255)
-
-  primary_color   String? @default("#2563eb") @db.VarChar(20)
-  secondary_color String? @default("#1e293b") @db.VarChar(20)
-
-  font_family String? @default("Cairo") @db.VarChar(100)
-  font_size   String? @default("medium") @db.VarChar(20)
-
-  dark_mode    Boolean? @default(true)
-  sidebar_mode String?  @default("expanded") @db.VarChar(50)
-
-  logo_url String?
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_name String?   @default("نظام إدارة المستفيدين") @db.VarChar(255)
+  primary_color     String?   @default("#2563eb") @db.VarChar(20)
+  secondary_color   String?   @default("#1e293b") @db.VarChar(20)
+  font_family       String?   @default("Cairo") @db.VarChar(100)
+  font_size         String?   @default("medium") @db.VarChar(20)
+  dark_mode         Boolean?  @default(true)
+  sidebar_mode      String?   @default("expanded") @db.VarChar(50)
+  logo_url          String?
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  updated_at        DateTime? @default(now()) @db.Timestamp(6)
 }
 
 model beneficiary_field_groups {
-  id            String  @id @default(uuid()) @db.Uuid
-  group_code    String  @unique @db.VarChar(50)
-  group_name_ar String  @db.VarChar(255)
-  group_name_en String? @db.VarChar(255)
-  sort_order    Int     @default(0)
-  is_active     Boolean @default(true)
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  fields beneficiary_custom_fields[]
-  tab_id String?                     @db.Uuid
-  tab    beneficiary_field_tabs?     @relation(fields: [tab_id], references: [id])
+  id            String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_code    String                      @unique @db.VarChar(50)
+  group_name_ar String                      @db.VarChar(255)
+  group_name_en String?                     @db.VarChar(255)
+  sort_order    Int?                        @default(0)
+  is_active     Boolean?                    @default(true)
+  created_at    DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?                   @default(now()) @updatedAt @db.Timestamp(6)
+  tab_id        String?                     @db.Uuid
+  fields        beneficiary_custom_fields[]
+  tab           beneficiary_field_tabs?     @relation(fields: [tab_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model beneficiary_custom_fields {
-  id String @id @default(uuid()) @db.Uuid
-
-  group_id String @db.Uuid
-
-  field_code String @db.VarChar(100)
-
-  field_label_ar String  @db.VarChar(255)
-  field_label_en String? @db.VarChar(255)
-
-  field_type String @default("text") @db.VarChar(50)
-
-  lookup_type String? @db.VarChar(100)
-
-  is_required Boolean @default(false)
-
-  sort_order Int @default(0)
-
-  is_active Boolean @default(true)
-
-  lookup_type_id String? @db.Uuid
-
-  placeholder_ar String? @db.VarChar(255)
-  placeholder_en String? @db.VarChar(255)
-  help_text_ar   String?
-  help_text_en   String?
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  group beneficiary_field_groups @relation(fields: [group_id], references: [id])
-
-  values             beneficiary_custom_values[]
+  id                 String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id           String                      @db.Uuid
+  field_code         String                      @db.VarChar(100)
+  field_label_ar     String                      @db.VarChar(255)
+  field_label_en     String?                     @db.VarChar(255)
+  field_type         String                      @default("text") @db.VarChar(50)
+  lookup_type        String?                     @db.VarChar(100)
+  is_required        Boolean?                    @default(false)
+  sort_order         Int?                        @default(0)
+  is_active          Boolean?                    @default(true)
+  created_at         DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?                   @default(now()) @updatedAt @db.Timestamp(6)
+  placeholder_ar     String?                     @db.VarChar(255)
+  placeholder_en     String?                     @db.VarChar(255)
+  help_text_ar       String?
+  help_text_en       String?
+  lookup_type_id     String?                     @db.Uuid
   default_value      String?
   is_readonly        Boolean?                    @default(false)
-  min_value          Decimal?
-  max_value          Decimal?
+  min_value          Decimal?                    @db.Decimal
+  max_value          Decimal?                    @db.Decimal
   min_length         Int?
   max_length         Int?
   validation_pattern String?
+  group              beneficiary_field_groups    @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookup_types       lookup_types?               @relation(fields: [lookup_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  values             beneficiary_custom_values[]
 }
 
 model beneficiary_custom_values {
-  id String @id @default(uuid()) @db.Uuid
-
-  beneficiary_id String @db.Uuid
-  field_id       String @db.Uuid
-
-  value_text    String?
-  value_number  Decimal?
-  value_date    DateTime?
-  value_boolean Boolean?
-
-  lookup_id String? @db.Uuid
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  field beneficiary_custom_fields @relation(fields: [field_id], references: [id])
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id String                    @db.Uuid
+  field_id       String                    @db.Uuid
+  value_text     String?
+  value_number   Decimal?                  @db.Decimal
+  value_date     DateTime?                 @db.Date
+  value_boolean  Boolean?
+  lookup_id      String?                   @db.Uuid
+  created_at     DateTime?                 @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?                 @default(now()) @updatedAt @db.Timestamp(6)
+  beneficiaries  beneficiaries             @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  field          beneficiary_custom_fields @relation(fields: [field_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lookups        lookups?                  @relation(fields: [lookup_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([beneficiary_id, field_id])
 }
 
 model beneficiary_field_tabs {
-  id String @id @default(uuid()) @db.Uuid
-
-  tab_code    String  @unique @db.VarChar(50)
-  tab_name_ar String  @db.VarChar(255)
-  tab_name_en String? @db.VarChar(255)
-
-  sort_order Int @default(0)
-
-  is_active Boolean @default(true)
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  groups beneficiary_field_groups[]
+  id          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tab_code    String                     @unique @db.VarChar(50)
+  tab_name_ar String                     @db.VarChar(255)
+  tab_name_en String?                    @db.VarChar(255)
+  sort_order  Int?                       @default(0)
+  is_active   Boolean?                   @default(true)
+  created_at  DateTime?                  @default(now()) @db.Timestamp(6)
+  updated_at  DateTime?                  @default(now()) @updatedAt @db.Timestamp(6)
+  groups      beneficiary_field_groups[]
 }
 
 model lookup_types {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type_code    String    @unique @db.VarChar(100)
-  type_name_ar String    @db.VarChar(255)
-  type_name_en String?   @db.VarChar(255)
-  sort_order   Int?      @default(0)
-  is_active    Boolean?  @default(true)
-  created_at   DateTime? @default(now()) @db.Timestamp(6)
-  updated_at   DateTime? @default(now()) @db.Timestamp(6)
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type_code                 String                      @unique @db.VarChar(100)
+  type_name_ar              String                      @db.VarChar(255)
+  type_name_en              String?                     @db.VarChar(255)
+  sort_order                Int?                        @default(0)
+  is_active                 Boolean?                    @default(true)
+  created_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  beneficiary_custom_fields beneficiary_custom_fields[]
 
   @@map("lookup_types")
 }
 
 model beneficiary_family_members {
-  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  beneficiary_id String @db.Uuid
+  id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id         String        @db.Uuid
+  full_name_ar           String        @db.VarChar(255)
+  gender                 String?       @db.VarChar(100)
+  birth_date             DateTime?     @db.Date
+  relationship_type      String?       @db.VarChar(100)
+  relationship_lookup_id String?       @db.Uuid
+  identity_number        String?       @db.VarChar(100)
+  phone                  String?       @db.VarChar(50)
+  education_status       String?       @db.VarChar(100)
+  health_status          String?       @db.VarChar(100)
+  notes                  String?
+  is_dependent           Boolean?      @default(true)
+  is_active              Boolean?      @default(true)
+  created_at             DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at             DateTime?     @default(now()) @db.Timestamp(6)
+  beneficiary            beneficiaries @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  full_name_ar String    @db.VarChar(255)
-  gender       String?   @db.VarChar(100)
-  birth_date   DateTime? @db.Date
-
-  relationship_type      String? @db.VarChar(100)
-  relationship_lookup_id String? @db.Uuid
-
-  identity_number String? @db.VarChar(100)
-  phone           String? @db.VarChar(50)
-
-  education_status String? @db.VarChar(100)
-  health_status    String? @db.VarChar(100)
-  notes            String?
-
-  is_dependent Boolean? @default(true)
-  is_active    Boolean? @default(true)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  beneficiary beneficiaries @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
-
-  @@index([beneficiary_id])
+  @@index([beneficiary_id], map: "idx_beneficiary_family_members_beneficiary_id")
 }
 
 model audit_entities {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_key         String                @unique @db.VarChar(100)
+  entity_name        String                @db.VarChar(100)
+  entity_type        String                @db.VarChar(100)
+  label_ar           String                @db.VarChar(255)
+  display_name_field String?               @db.VarChar(100)
+  is_active          Boolean?              @default(true)
+  created_at         DateTime?             @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?             @default(now()) @db.Timestamp(6)
+  fields             audit_entity_fields[]
 
-  entity_key  String @unique @db.VarChar(100)
-  entity_name String @db.VarChar(100)
-  entity_type String @db.VarChar(100)
-
-  label_ar           String  @db.VarChar(255)
-  display_name_field String? @db.VarChar(100)
-
-  is_active Boolean? @default(true)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  fields audit_entity_fields[]
-
-  @@index([entity_key])
+  @@index([entity_key], map: "idx_audit_entities_entity_key")
 }
 
 model audit_entity_fields {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_id      String         @db.Uuid
+  field_name     String         @db.VarChar(100)
+  field_label_ar String         @db.VarChar(255)
+  is_tracked     Boolean?       @default(true)
+  is_lookup      Boolean?       @default(false)
+  lookup_type    String?        @db.VarChar(100)
+  sort_order     Int?           @default(0)
+  is_active      Boolean?       @default(true)
+  created_at     DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?      @default(now()) @db.Timestamp(6)
+  entity         audit_entities @relation(fields: [entity_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  entity_id String @db.Uuid
-
-  field_name     String @db.VarChar(100)
-  field_label_ar String @db.VarChar(255)
-
-  is_tracked  Boolean? @default(true)
-  is_lookup   Boolean? @default(false)
-  lookup_type String?  @db.VarChar(100)
-
-  sort_order Int?     @default(0)
-  is_active  Boolean? @default(true)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  entity audit_entities @relation(fields: [entity_id], references: [id], onDelete: Cascade)
-
-  @@unique([entity_id, field_name])
-  @@index([entity_id])
+  @@unique([entity_id, field_name], map: "uq_audit_entity_field")
+  @@index([entity_id], map: "idx_audit_entity_fields_entity_id")
 }
 
 model duplicate_rules {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_key         String                  @db.VarChar(100)
+  entity_name        String                  @db.VarChar(100)
+  label_ar           String                  @db.VarChar(255)
+  rule_name_ar       String                  @db.VarChar(255)
+  action_mode        String                  @default("warn") @db.VarChar(30)
+  scope_level        String                  @default("system") @db.VarChar(30)
+  scope_field        String?                 @db.VarChar(100)
+  display_name_field String?                 @db.VarChar(100)
+  message_ar         String?
+  is_active          Boolean?                @default(true)
+  created_at         DateTime?               @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?               @default(now()) @db.Timestamp(6)
+  fields             duplicate_rule_fields[]
 
-  entity_key  String @db.VarChar(100)
-  entity_name String @db.VarChar(100)
-  label_ar    String @db.VarChar(255)
-
-  rule_name_ar String @db.VarChar(255)
-
-  action_mode String  @default("warn") @db.VarChar(30)
-  scope_level String  @default("system") @db.VarChar(30)
-  scope_field String? @db.VarChar(100)
-
-  display_name_field String? @db.VarChar(100)
-
-  message_ar String?
-
-  is_active Boolean? @default(true)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  fields duplicate_rule_fields[]
-
-  @@index([entity_key])
+  @@index([entity_key], map: "idx_duplicate_rules_entity_key")
 }
 
 model duplicate_rule_fields {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rule_id        String          @db.Uuid
+  field_name     String          @db.VarChar(100)
+  field_label_ar String          @db.VarChar(255)
+  match_type     String          @default("exact") @db.VarChar(30)
+  is_required    Boolean?        @default(true)
+  sort_order     Int?            @default(0)
+  is_active      Boolean?        @default(true)
+  created_at     DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?       @default(now()) @db.Timestamp(6)
+  rule           duplicate_rules @relation(fields: [rule_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  rule_id String @db.Uuid
-
-  field_name     String @db.VarChar(100)
-  field_label_ar String @db.VarChar(255)
-
-  match_type  String   @default("exact") @db.VarChar(30)
-  is_required Boolean? @default(true)
-
-  sort_order Int?     @default(0)
-  is_active  Boolean? @default(true)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  rule duplicate_rules @relation(fields: [rule_id], references: [id], onDelete: Cascade)
-
-  @@unique([rule_id, field_name])
-  @@index([rule_id])
+  @@unique([rule_id, field_name], map: "uq_duplicate_rule_field")
+  @@index([rule_id], map: "idx_duplicate_rule_fields_rule_id")
 }
 
 model database_constraint_messages {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-
-  table_name      String @db.VarChar(100)
-  field_name      String @db.VarChar(100)
-  constraint_type String @default("unique") @db.VarChar(50)
-
-  message_ar String
-  is_active  Boolean? @default(true)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  table_name      String    @db.VarChar(100)
+  field_name      String    @db.VarChar(100)
+  constraint_type String    @default("unique") @db.VarChar(50)
+  message_ar      String
+  is_active       Boolean?  @default(true)
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  updated_at      DateTime? @default(now()) @db.Timestamp(6)
 
   @@unique([table_name, field_name, constraint_type], map: "uq_database_constraint_message")
   @@index([table_name, field_name, constraint_type], map: "idx_database_constraint_messages_lookup")
 }
 
 model entity_definitions {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                 String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_key         String                     @unique @db.VarChar(100)
+  table_name         String                     @db.VarChar(100)
+  label_ar           String                     @db.VarChar(255)
+  label_en           String?                    @db.VarChar(255)
+  route_path         String?                    @db.VarChar(255)
+  api_path           String?                    @db.VarChar(255)
+  display_name_field String?                    @db.VarChar(100)
+  code_field         String?                    @db.VarChar(100)
+  icon_name          String?                    @db.VarChar(100)
+  is_system          Boolean?                   @default(false)
+  is_active          Boolean?                   @default(true)
+  allow_create       Boolean?                   @default(true)
+  allow_update       Boolean?                   @default(true)
+  allow_delete       Boolean?                   @default(true)
+  allow_import       Boolean?                   @default(false)
+  allow_export       Boolean?                   @default(true)
+  created_at         DateTime?                  @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?                  @default(now()) @db.Timestamp(6)
+  fields             entity_field_definitions[]
 
-  entity_key String @unique @db.VarChar(100)
-  table_name String @db.VarChar(100)
-
-  label_ar String  @db.VarChar(255)
-  label_en String? @db.VarChar(255)
-
-  route_path String? @db.VarChar(255)
-  api_path   String? @db.VarChar(255)
-
-  display_name_field String? @db.VarChar(100)
-  code_field         String? @db.VarChar(100)
-
-  icon_name String? @db.VarChar(100)
-
-  is_system Boolean? @default(false)
-  is_active Boolean? @default(true)
-
-  allow_create Boolean? @default(true)
-  allow_update Boolean? @default(true)
-  allow_delete Boolean? @default(true)
-  allow_import Boolean? @default(false)
-  allow_export Boolean? @default(true)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  fields entity_field_definitions[]
+  @@index([entity_key], map: "idx_entity_definitions_entity_key")
 }
 
 model entity_field_definitions {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-
-  entity_id      String  @db.Uuid
-  field_name     String  @db.VarChar(100)
-  field_label_ar String  @db.VarChar(255)
-  field_label_en String? @db.VarChar(255)
-
-  data_type  String? @db.VarChar(100)
-  input_type String? @default("text") @db.VarChar(100)
-
-  is_required         Boolean? @default(false)
-  is_visible_in_table Boolean? @default(true)
-  is_visible_in_form  Boolean? @default(true)
-  is_readonly         Boolean? @default(false)
-
-  is_lookup   Boolean? @default(false)
-  lookup_type String?  @db.VarChar(100)
-
-  sort_order Int? @default(0)
-
-  is_active Boolean? @default(true)
-
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
-
-  reference_type        String? @default("none") @db.VarChar(30)
-  reference_table       String? @db.VarChar(100)
-  reference_key_field   String? @default("id") @db.VarChar(100)
-  reference_label_field String? @db.VarChar(100)
-
-  entity entity_definitions @relation(fields: [entity_id], references: [id], onDelete: Cascade)
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_id             String             @db.Uuid
+  field_name            String             @db.VarChar(100)
+  field_label_ar        String             @db.VarChar(255)
+  field_label_en        String?            @db.VarChar(255)
+  data_type             String?            @db.VarChar(100)
+  input_type            String?            @default("text") @db.VarChar(100)
+  is_required           Boolean?           @default(false)
+  is_visible_in_table   Boolean?           @default(true)
+  is_visible_in_form    Boolean?           @default(true)
+  is_readonly           Boolean?           @default(false)
+  is_lookup             Boolean?           @default(false)
+  lookup_type           String?            @db.VarChar(100)
+  sort_order            Int?               @default(0)
+  is_active             Boolean?           @default(true)
+  created_at            DateTime?          @default(now()) @db.Timestamp(6)
+  updated_at            DateTime?          @default(now()) @db.Timestamp(6)
+  reference_type        String?            @default("none") @db.VarChar(30)
+  reference_table       String?            @db.VarChar(100)
+  reference_key_field   String?            @default("id") @db.VarChar(100)
+  reference_label_field String?            @db.VarChar(100)
+  entity                entity_definitions @relation(fields: [entity_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([entity_id, field_name], map: "uq_entity_field_definition")
   @@index([entity_id], map: "idx_entity_field_definitions_entity_id")
 }
 
 model beneficiary_sponsor_links {
-  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  beneficiary_id           String    @db.Uuid
-  sponsor_id               String    @db.Uuid
-  sponsor_beneficiary_code String?   @db.VarChar(100)
-  sponsor_file_number      String?   @db.VarChar(100)
-  sponsor_reference        String?   @db.VarChar(150)
-  registration_date        DateTime? @db.Date
-  status                   String?   @default("active") @db.VarChar(50)
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id           String                  @db.Uuid
+  sponsor_id               String                  @db.Uuid
+  sponsor_beneficiary_code String?                 @db.VarChar(100)
+  sponsor_file_number      String?                 @db.VarChar(100)
+  sponsor_reference        String?                 @db.VarChar(150)
+  registration_date        DateTime?               @db.Date
+  status                   String?                 @default("active") @db.VarChar(50)
   notes                    String?
-  created_at               DateTime? @default(now()) @db.Timestamp(6)
-  updated_at               DateTime? @default(now()) @db.Timestamp(6)
-
-  beneficiaries beneficiaries  @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
-  sponsors      sponsors       @relation(fields: [sponsor_id], references: [id])
-  sponsorships  sponsorships[]
+  created_at               DateTime?               @default(now()) @db.Timestamp(6)
+  updated_at               DateTime?               @default(now()) @db.Timestamp(6)
+  beneficiaries            beneficiaries           @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sponsors                 sponsors                @relation(fields: [sponsor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  benf_fin_entitlements    benf_fin_entitlements[]
+  benf_fin_transactions    benf_fin_transactions[]
+  sponsorships             sponsorships[]
 
   @@unique([beneficiary_id, sponsor_id], map: "uq_beneficiary_sponsor_link")
   @@index([beneficiary_id], map: "idx_beneficiary_sponsor_links_beneficiary_id")
@@ -1072,21 +1050,284 @@ model beneficiary_sponsor_links {
 }
 
 model user_permission_overrides {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id       String    @db.Uuid
-  permission_id String    @db.Uuid
-  effect        String    @db.VarChar(20)
-  reason        String?
-  created_by    String?   @db.Uuid
-  created_at    DateTime? @default(now()) @db.Timestamp(6)
-  updated_at    DateTime? @default(now()) @db.Timestamp(6)
-
-  users           users       @relation("user_permission_overrides_user", fields: [user_id], references: [id], onDelete: Cascade)
-  permissions     permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade)
-  created_by_user users?      @relation("user_permission_overrides_created_by", fields: [created_by], references: [id])
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String      @db.Uuid
+  permission_id   String      @db.Uuid
+  effect          String      @db.VarChar(20)
+  reason          String?
+  created_by      String?     @db.Uuid
+  created_at      DateTime?   @default(now()) @db.Timestamp(6)
+  updated_at      DateTime?   @default(now()) @db.Timestamp(6)
+  created_by_user users?      @relation("user_permission_overrides_created_by", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  permissions     permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users           users       @relation("user_permission_overrides_user", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([user_id, permission_id], map: "uq_user_permission_override")
   @@index([user_id], map: "idx_user_permission_overrides_user_id")
   @@index([permission_id], map: "idx_user_permission_overrides_permission_id")
   @@index([effect], map: "idx_user_permission_overrides_effect")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model attachment_sections {
+  id                         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  section_code               String               @unique @db.VarChar(100)
+  section_name_ar            String               @db.VarChar(255)
+  section_name_en            String?              @db.VarChar(255)
+  entity_type                String?              @db.VarChar(100)
+  storage_folder             String               @db.VarChar(255)
+  path_template              String
+  default_allowed_extensions String?
+  default_allowed_mime_types String?
+  default_max_file_size_mb   Int?
+  default_min_width          Int?
+  default_max_width          Int?
+  default_min_height         Int?
+  default_max_height         Int?
+  allow_multiple             Boolean              @default(false)
+  sort_order                 Int                  @default(0)
+  is_active                  Boolean              @default(true)
+  notes                      String?
+  created_at                 DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at                 DateTime?            @default(now()) @db.Timestamp(6)
+  attachment_types           attachment_types[]
+  entity_attachments         entity_attachments[]
+
+  @@index([section_code], map: "idx_attachment_sections_code")
+  @@index([entity_type], map: "idx_attachment_sections_entity_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model attachment_settings {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  setting_key   String    @unique @db.VarChar(150)
+  setting_value String?
+  setting_type  String    @default("string") @db.VarChar(50)
+  scope_type    String    @default("global") @db.VarChar(50)
+  scope_code    String?   @db.VarChar(150)
+  description   String?
+  is_locked     Boolean   @default(false)
+  is_active     Boolean   @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at    DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([setting_key], map: "idx_attachment_settings_key")
+}
+
+model benf_fin_accounts {
+  id                                                                                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_code                                                                          String                  @unique @db.VarChar(50)
+  account_name                                                                          String                  @db.VarChar(255)
+  account_type                                                                          String                  @db.VarChar(50)
+  related_entity_type                                                                   String?                 @db.VarChar(50)
+  related_entity_id                                                                     String?                 @db.Uuid
+  currency                                                                              String?                 @db.VarChar(10)
+  parent_account_id                                                                     String?                 @db.Uuid
+  opening_balance                                                                       Decimal?                @default(0) @db.Decimal(18, 2)
+  opening_balance_date                                                                  DateTime?               @db.Date
+  is_active                                                                             Boolean?                @default(true)
+  notes                                                                                 String?
+  created_at                                                                            DateTime?               @default(now()) @db.Timestamp(6)
+  updated_at                                                                            DateTime?               @default(now()) @db.Timestamp(6)
+  benf_fin_accounts                                                                     benf_fin_accounts?      @relation("benf_fin_accountsTobenf_fin_accounts", fields: [parent_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_benf_fin_accounts                                                               benf_fin_accounts[]     @relation("benf_fin_accountsTobenf_fin_accounts")
+  benf_fin_entries                                                                      benf_fin_entries[]
+  benf_fin_transactions_benf_fin_transactions_destination_account_idTobenf_fin_accounts benf_fin_transactions[] @relation("benf_fin_transactions_destination_account_idTobenf_fin_accounts")
+  benf_fin_transactions_benf_fin_transactions_source_account_idTobenf_fin_accounts      benf_fin_transactions[] @relation("benf_fin_transactions_source_account_idTobenf_fin_accounts")
+
+  @@index([account_type], map: "idx_benf_fin_accounts_account_type")
+  @@index([currency], map: "idx_benf_fin_accounts_currency")
+  @@index([parent_account_id], map: "idx_benf_fin_accounts_parent_account_id")
+  @@index([related_entity_type, related_entity_id], map: "idx_benf_fin_accounts_related_entity")
+}
+
+model benf_fin_entitlements {
+  id                          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entitlement_code            String                     @unique @db.VarChar(50)
+  beneficiary_id              String                     @db.Uuid
+  beneficiary_sponsor_link_id String?                    @db.Uuid
+  sponsorship_id              String?                    @db.Uuid
+  entitlement_type            String                     @db.VarChar(50)
+  entitlement_nature          String                     @db.VarChar(50)
+  amount                      Decimal                    @default(0) @db.Decimal(14, 2)
+  currency                    String                     @db.VarChar(10)
+  start_date                  DateTime?                  @db.Date
+  end_date                    DateTime?                  @db.Date
+  period_type                 String?                    @default("monthly") @db.VarChar(50)
+  period_count                Int?                       @default(1)
+  status                      String?                    @default("active") @db.VarChar(50)
+  notes                       String?
+  created_by                  String?                    @db.Uuid
+  updated_by                  String?                    @db.Uuid
+  created_at                  DateTime?                  @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime?                  @default(now()) @db.Timestamp(6)
+  beneficiaries               beneficiaries              @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  beneficiary_sponsor_links   beneficiary_sponsor_links? @relation(fields: [beneficiary_sponsor_link_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sponsorships                sponsorships?              @relation(fields: [sponsorship_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  benf_fin_transactions       benf_fin_transactions[]
+
+  @@index([beneficiary_id], map: "idx_benf_fin_entitlements_beneficiary_id")
+  @@index([beneficiary_sponsor_link_id], map: "idx_benf_fin_entitlements_sponsor_link_id")
+  @@index([sponsorship_id], map: "idx_benf_fin_entitlements_sponsorship_id")
+  @@index([status], map: "idx_benf_fin_entitlements_status")
+  @@index([entitlement_type], map: "idx_benf_fin_entitlements_type")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model benf_fin_entries {
+  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transaction_id        String                @db.Uuid
+  entry_date            DateTime              @default(dbgenerated("CURRENT_DATE")) @db.Date
+  account_id            String                @db.Uuid
+  beneficiary_id        String?               @db.Uuid
+  sponsor_id            String?               @db.Uuid
+  branch_id             String?               @db.Uuid
+  debit                 Decimal?              @default(0) @db.Decimal(14, 2)
+  credit                Decimal?              @default(0) @db.Decimal(14, 2)
+  currency              String                @db.VarChar(10)
+  exchange_rate         Decimal?              @db.Decimal(18, 6)
+  base_currency         String?               @default("YER") @db.VarChar(10)
+  debit_base            Decimal?              @default(0) @db.Decimal(14, 2)
+  credit_base           Decimal?              @default(0) @db.Decimal(14, 2)
+  description           String?
+  is_posted             Boolean?              @default(false)
+  created_at            DateTime?             @default(now()) @db.Timestamp(6)
+  benf_fin_accounts     benf_fin_accounts     @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  beneficiaries         beneficiaries?        @relation(fields: [beneficiary_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches              branches?             @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sponsors              sponsors?             @relation(fields: [sponsor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  benf_fin_transactions benf_fin_transactions @relation(fields: [transaction_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([account_id], map: "idx_benf_fin_entries_account_id")
+  @@index([beneficiary_id], map: "idx_benf_fin_entries_beneficiary_id")
+  @@index([branch_id], map: "idx_benf_fin_entries_branch_id")
+  @@index([entry_date], map: "idx_benf_fin_entries_entry_date")
+  @@index([is_posted], map: "idx_benf_fin_entries_posted")
+  @@index([sponsor_id], map: "idx_benf_fin_entries_sponsor_id")
+  @@index([transaction_id], map: "idx_benf_fin_entries_transaction_id")
+}
+
+model benf_fin_exchange_rates {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  currency      String    @db.VarChar(10)
+  base_currency String    @default("YER") @db.VarChar(10)
+  rate          Decimal   @db.Decimal(18, 6)
+  rate_date     DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  source        String?   @db.VarChar(150)
+  notes         String?
+  is_active     Boolean?  @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at    DateTime? @default(now()) @db.Timestamp(6)
+
+  @@unique([currency, base_currency, rate_date], map: "uq_benf_fin_exchange_rate_currency_base_date")
+  @@index([base_currency], map: "idx_benf_fin_exchange_rates_base_currency")
+  @@index([currency, rate_date], map: "idx_benf_fin_exchange_rates_currency_date")
+}
+
+model benf_fin_settings {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  setting_key   String    @unique @db.VarChar(100)
+  setting_value String?
+  setting_type  String?   @default("string") @db.VarChar(50)
+  description   String?
+  is_locked     Boolean?  @default(false)
+  is_active     Boolean?  @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at    DateTime? @default(now()) @db.Timestamp(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model benf_fin_transactions {
+  id                                                                                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transaction_code                                                                  String                     @unique @db.VarChar(50)
+  transaction_type                                                                  String                     @db.VarChar(50)
+  transaction_date                                                                  DateTime                   @default(dbgenerated("CURRENT_DATE")) @db.Date
+  period_year                                                                       Int?
+  period_month                                                                      Int?
+  beneficiary_id                                                                    String?                    @db.Uuid
+  beneficiary_sponsor_link_id                                                       String?                    @db.Uuid
+  sponsorship_id                                                                    String?                    @db.Uuid
+  entitlement_id                                                                    String?                    @db.Uuid
+  source_account_id                                                                 String?                    @db.Uuid
+  destination_account_id                                                            String?                    @db.Uuid
+  amount                                                                            Decimal                    @default(0) @db.Decimal(14, 2)
+  currency                                                                          String                     @db.VarChar(10)
+  exchange_rate                                                                     Decimal?                   @db.Decimal(18, 6)
+  base_currency                                                                     String?                    @default("YER") @db.VarChar(10)
+  amount_in_base_currency                                                           Decimal?                   @db.Decimal(14, 2)
+  payment_method                                                                    String?                    @db.VarChar(50)
+  status                                                                            String?                    @default("draft") @db.VarChar(50)
+  is_posted                                                                         Boolean?                   @default(false)
+  posted_at                                                                         DateTime?                  @db.Timestamp(6)
+  posted_by                                                                         String?                    @db.Uuid
+  reference_number                                                                  String?                    @db.VarChar(100)
+  receipt_number                                                                    String?                    @db.VarChar(100)
+  notes                                                                             String?
+  created_by                                                                        String?                    @db.Uuid
+  updated_by                                                                        String?                    @db.Uuid
+  created_at                                                                        DateTime?                  @default(now()) @db.Timestamp(6)
+  updated_at                                                                        DateTime?                  @default(now()) @db.Timestamp(6)
+  benf_fin_entries                                                                  benf_fin_entries[]
+  beneficiaries                                                                     beneficiaries?             @relation(fields: [beneficiary_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  beneficiary_sponsor_links                                                         beneficiary_sponsor_links? @relation(fields: [beneficiary_sponsor_link_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  benf_fin_accounts_benf_fin_transactions_destination_account_idTobenf_fin_accounts benf_fin_accounts?         @relation("benf_fin_transactions_destination_account_idTobenf_fin_accounts", fields: [destination_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  benf_fin_entitlements                                                             benf_fin_entitlements?     @relation(fields: [entitlement_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  benf_fin_accounts_benf_fin_transactions_source_account_idTobenf_fin_accounts      benf_fin_accounts?         @relation("benf_fin_transactions_source_account_idTobenf_fin_accounts", fields: [source_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sponsorships                                                                      sponsorships?              @relation(fields: [sponsorship_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([beneficiary_id], map: "idx_benf_fin_transactions_beneficiary_id")
+  @@index([transaction_date], map: "idx_benf_fin_transactions_date")
+  @@index([entitlement_id], map: "idx_benf_fin_transactions_entitlement_id")
+  @@index([is_posted], map: "idx_benf_fin_transactions_posted")
+  @@index([beneficiary_sponsor_link_id], map: "idx_benf_fin_transactions_sponsor_link_id")
+  @@index([sponsorship_id], map: "idx_benf_fin_transactions_sponsorship_id")
+  @@index([status], map: "idx_benf_fin_transactions_status")
+  @@index([transaction_type], map: "idx_benf_fin_transactions_type")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model entity_attachments {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type         String               @db.VarChar(100)
+  entity_id           String               @db.Uuid
+  section_id          String?              @db.Uuid
+  attachment_type_id  String               @db.Uuid
+  beneficiary_id      String?              @db.Uuid
+  periodic_report_id  String?              @db.Uuid
+  sponsorship_id      String?              @db.Uuid
+  branch_id           String?              @db.Uuid
+  site_id             String?              @db.Uuid
+  center_id           String?              @db.Uuid
+  file_number         String?              @db.VarChar(50)
+  report_year         Int?
+  report_type         String?              @db.VarChar(50)
+  original_file_name  String?              @db.VarChar(500)
+  stored_file_name    String               @db.VarChar(500)
+  file_extension      String               @db.VarChar(20)
+  mime_type           String?              @db.VarChar(150)
+  file_size           BigInt?
+  storage_driver      String               @default("local") @db.VarChar(50)
+  file_path           String
+  relative_path       String?
+  public_url          String?
+  version_no          Int                  @default(1)
+  is_current          Boolean              @default(true)
+  status              String               @default("active") @db.VarChar(50)
+  is_active           Boolean              @default(true)
+  uploaded_by         String?              @db.Uuid
+  uploaded_at         DateTime?            @default(now()) @db.Timestamp(6)
+  notes               String?
+  created_at          DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at          DateTime?            @default(now()) @db.Timestamp(6)
+  attachment_types    attachment_types     @relation(fields: [attachment_type_id], references: [id], onUpdate: NoAction)
+  attachment_sections attachment_sections? @relation(fields: [section_id], references: [id], onUpdate: NoAction)
+
+  @@index([beneficiary_id], map: "idx_entity_attachments_beneficiary")
+  @@index([is_current, is_active], map: "idx_entity_attachments_current")
+  @@index([entity_type, entity_id], map: "idx_entity_attachments_entity")
+  @@index([file_number], map: "idx_entity_attachments_file_number")
+  @@index([report_year, report_type], map: "idx_entity_attachments_report")
+  @@index([section_id], map: "idx_entity_attachments_section")
+  @@index([attachment_type_id], map: "idx_entity_attachments_type")
+  @@index([uploaded_at], map: "idx_entity_attachments_uploaded_at")
 }
