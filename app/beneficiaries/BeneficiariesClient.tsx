@@ -15,6 +15,8 @@ import FathersClient from "@/app/fathers/FathersClient";
 import MothersClient from "@/app/mothers/MothersClient";
 import GuardiansClient from "@/app/guardians/GuardiansClient";
 
+import BeneficiaryAttachmentsTab from "./components/BeneficiaryAttachmentsTab";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -800,6 +802,16 @@ export default function BeneficiariesClient() {
                 >
                   الجهات الداعمة
                 </button>
+				
+				<button
+				  type="button"
+				  onClick={() => setActiveTab("attachments")}
+				  className={`rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800 ${
+					activeTab === "attachments" ? "bg-green-600 text-white" : ""
+				  }`}
+				>
+				  المرفقات
+				</button>
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
@@ -852,6 +864,16 @@ export default function BeneficiariesClient() {
                 {activeTab === "sponsorLinks" && (
                   <BeneficiarySponsorLinksTab beneficiaryId={form.id} />
                 )}
+				
+				{activeTab === "attachments" && (
+				  <BeneficiaryAttachmentsTab
+					beneficiaryId={form.id}
+					fileNumber={form.file_number}
+					branchId={form.branch_id}
+					siteId={form.site_id}
+					centerId={form.center_id}
+				  />
+				)}
               </div>
 
               <div className="shrink-0 flex justify-end gap-3 px-6 py-4 border-t">
