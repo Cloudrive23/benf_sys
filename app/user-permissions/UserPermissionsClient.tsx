@@ -39,7 +39,7 @@ type Permission = {
     reason?: string | null;
   } | null;
   is_allowed?: boolean;
-  source?: "direct_allow" | "direct_deny" | "role" | "none";
+  source?: "role" | "direct_allow" | "direct_deny" | "none" | "super_admin";
 };
 
 type PermissionModule = {
@@ -89,7 +89,7 @@ function actionLabel(action: string) {
 }
 
 function statusLabel(permission: Permission) {
-  if (permission.source === "super_admin") return "مدير مبرمج";
+ if (permission.source === "super_admin") return "مدير نظام أعلى";
   if (permission.source === "direct_deny") return "ممنوعة مباشرة";
   if (permission.source === "direct_allow") return "ممنوحة مباشرة";
   if (permission.source === "role") return "موروثة من الدور";

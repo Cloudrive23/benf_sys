@@ -118,7 +118,12 @@ const navGroups: NavGroup[] = [
         href: "/audit-settings",
         label: { ar: "إعدادات سجل التغييرات", en: "Audit Settings" },
         permissions: ["audit_settings.manage"],
-      },
+      },	  
+	  {
+		  href: "/attachments-settings",
+		  label: { ar: "إعدادات المرفقات", en: "Attachments Settings" },
+		  permissions: ["attachments.manage"],
+	  },
       {
         href: "/duplicate-rules",
         label: { ar: "سياسات التكرار", en: "Duplicate Rules" },
